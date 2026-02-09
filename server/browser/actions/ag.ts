@@ -12,14 +12,19 @@ const SELECTORS = {
   login: {
     usernameField: 'internal:role=textbox[name="Username"i]',       // TODO: update
     passwordField: 'internal:role=textbox[name="Password"i]',       // TODO: update
-    submitButton: 'internal:role=button[name="Login"i]',       // TODO: update
-    dashboardIndicator: '.dashboard', // TODO: element visible after successful login
+    submitButton: 'internal:role=button[name="Logon"i]',       // TODO: update
+    dashboardIndicator: 'internal:text="Dashboard"', // TODO: element visible after successful login
   },
-
+  // Update Policy navigator
+  navigator: {
+    policyOperations: 'internal:role=link[name=" Policy Operations "i]',             // TODO: update
+    updatePolicy: 'internal:role=link[name="Update Policy"i]',             // TODO: update
+  },
   // Policy search
-  search: {
-    searchField: '#policy-search',           // TODO: update
-    searchButton: '#search-btn',             // TODO: update
+  search: {    
+    selector: 'internal:role=label=[name="Select Serach Option"]',
+    searchField: 'internal:role=textbox[name="Search Option"i]',           // TODO: update
+    searchButton: 'internal:role=button[name="Fetch"i]',             // TODO: update
     resultRow: '.policy-result-row',         // TODO: first result
     resultPolicyLink: '.policy-result-row a', // TODO: link to policy
   },
@@ -70,15 +75,31 @@ export async function loginToAG(): Promise<Page> {
 }
 
 // ============================================
+// Navigate to correct policy
+// ============================================
+
+export async function navigateToPolicy(page: Page): Promise<void> {
+  log(`Navigating to policy`);
+
+  // Navigate to search or use search bar
+  await page.click(SELECTORS.navigator.policyOperations);
+
+  // Click into the policy
+  await page.click(SELECTORS.navigator.updatePolicy);
+
+}
+// ============================================
 // Search for a policy by number
 // ============================================
 
 export async function searchPolicy(page: Page, policyNumber: string): Promise<void> {
   log(`Searching for policy: ${policyNumber}`);
 
+  // Navigate to selector and select fetch by policy number
+  await page.selectOption(SELECTORS.search.selector, 'Fetch by Policy No');
+
   // Navigate to search or use search bar
   await page.fill(SELECTORS.search.searchField, policyNumber);
-  await page.click(SELECTORS.search.searchButton);
 
   // Wait for results
   await page.waitForSelector(SELECTORS.search.resultRow, { timeout: 15000 });

@@ -8,7 +8,7 @@ import {
   VehicleMakeCorrectionInput,
 } from '../types';
 import { log, emitEvent, saveTaskLog } from '../utils/logger';
-import { loginToAG, searchPolicy, correctName, correctRegistration, correctVehicleMake } from '../browser/actions/ag';
+import { loginToAG, searchPolicy, correctName, correctRegistration, correctVehicleMake, navigateToPolicy } from '../browser/actions/ag';
 import { checkNIIDSession, searchNIIDPolicy, correctNIIDRegistration } from '../browser/actions/niid';
 import { getPage } from '../browser/controller';
 
@@ -106,6 +106,9 @@ async function runNameCorrection(task: Task, input: NameCorrectionInput) {
   const page = await loginToAG();
   addStep(task, createStep('ag', 'Login to A&G', 'success'));
 
+  // Naigate to Update Policy
+  await navigateToPolicy(page);
+
   // Step 2: Search for policy
   await searchPolicy(page, input.policyNumber);
   addStep(task, createStep('ag', `Search policy: ${input.policyNumber}`, 'success'));
@@ -126,6 +129,9 @@ async function runRegistrationCorrection(task: Task, input: RegistrationCorrecti
   // Step 1: Login to A&G
   const agPage = await loginToAG();
   addStep(task, createStep('ag', 'Login to A&G', 'success'));
+
+  // Naigate to Update Policy
+  await navigateToPolicy(agPage);
 
   // Step 2: Search for policy on A&G
   await searchPolicy(agPage, input.policyNumber);
