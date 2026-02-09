@@ -11,7 +11,7 @@ const SELECTORS = {
   // Login page
   login: {
     usernameField: 'internal:role=textbox[name="Username"i]',       // TODO: update
-    // passwordField: 'internal:role=textbox[name="Password"i]',       // TODO: update
+    passwordField: 'internal:role=textbox[name="Password"i]',       // TODO: update
     submitButton: 'internal:role=button[name="Login"i]',       // TODO: update
     dashboardIndicator: '.dashboard', // TODO: element visible after successful login
   },
@@ -56,7 +56,7 @@ export async function loginToAG(): Promise<Page> {
 
   // Fill login form
   await page.fill(SELECTORS.login.usernameField, config.ag.username);
-  // await page.fill(SELECTORS.login.passwordField, config.ag.password);
+  await page.fill(SELECTORS.login.passwordField, config.ag.password);
   await page.click(SELECTORS.login.submitButton);
 
   // Wait for dashboard to load

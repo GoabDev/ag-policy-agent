@@ -1,0 +1,21 @@
+{
+  "id": "b5ab537c-8fad-4221-8890-dcd05142a292",
+  "correction": {
+    "type": "registration",
+    "policyNumber": "appaks",
+    "newRegistrationNumber": "Bsd-123-fy"
+  },
+  "status": "failed",
+  "steps": [
+    {
+      "timestamp": "2026-02-09T15:49:58.489Z",
+      "site": "ag",
+      "action": "error",
+      "status": "failed",
+      "details": "page.click: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Login' })\u001b[22m\n"
+    }
+  ],
+  "createdAt": "2026-02-09T15:49:22.595Z",
+  "error": "page.click: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Login' })\u001b[22m\n",
+  "completedAt": "2026-02-09T15:49:58.489Z"
+}
