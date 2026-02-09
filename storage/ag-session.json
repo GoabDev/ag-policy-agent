@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "ASP.NET_SessionId",
+      "value": "3pmhoqfwmd4ftfkzkrlw0k0x",
+      "domain": "aginsuranceapplications.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}
