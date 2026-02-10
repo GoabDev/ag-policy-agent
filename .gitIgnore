@@ -59,4 +59,4 @@ Thumbs.db
 *.log
 
 # Storage
-storage/*.json
+storage/

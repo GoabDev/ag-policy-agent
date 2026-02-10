@@ -8,9 +8,8 @@ import {
   VehicleMakeCorrectionInput,
 } from '../types';
 import { log, emitEvent, saveTaskLog } from '../utils/logger';
-import { loginToAG, searchPolicy, correctName, correctRegistration, correctVehicleMake, navigateToPolicy } from '../browser/actions/ag';
-import { checkNIIDSession, searchNIIDPolicy, correctNIIDRegistration } from '../browser/actions/niid';
-import { getPage } from '../browser/controller';
+import { getAGPolicyPage, searchPolicy, correctName, correctRegistration, correctVehicleMake } from '../browser/actions/ag';
+import { getNIIDPolicyPage, searchNIIDPolicy, correctNIIDRegistration } from '../browser/actions/niid';
 
 // Task queue
 let currentTask: Task | null = null;
@@ -102,20 +101,17 @@ export async function runCorrection(input: CorrectionInput): Promise<Task> {
 // ============================================
 
 async function runNameCorrection(task: Task, input: NameCorrectionInput) {
-  // Step 1: Login to A&G
-  const page = await loginToAG();
-  addStep(task, createStep('ag', 'Login to A&G', 'success'));
-
-  // Naigate to Update Policy
-  await navigateToPolicy(page);
+  // Step 1: Get A&G page (reuses keep-alive session)
+  const page = await getAGPolicyPage();
+  addStep(task, createStep('ag', 'A&G session ready', 'success'));
 
   // Step 2: Search for policy
   await searchPolicy(page, input.policyNumber);
   addStep(task, createStep('ag', `Search policy: ${input.policyNumber}`, 'success'));
 
   // Step 3: Correct name
-  await correctName(page, input.newName);
-  addStep(task, createStep('ag', `Name updated to: ${input.newName}`, 'success'));
+  await correctName(page, input.firstName, input.lastName);
+  addStep(task, createStep('ag', `Name updated to: ${input.firstName} ${input.lastName}`, 'success'));
 
   // NIID not needed
   addStep(task, createStep('niid', 'NIID update not required for name correction', 'skipped'));
@@ -126,12 +122,9 @@ async function runNameCorrection(task: Task, input: NameCorrectionInput) {
 // ============================================
 
 async function runRegistrationCorrection(task: Task, input: RegistrationCorrectionInput) {
-  // Step 1: Login to A&G
-  const agPage = await loginToAG();
-  addStep(task, createStep('ag', 'Login to A&G', 'success'));
-
-  // Naigate to Update Policy
-  await navigateToPolicy(agPage);
+  // Step 1: Get A&G page (reuses keep-alive session)
+  const agPage = await getAGPolicyPage();
+  addStep(task, createStep('ag', 'A&G session ready', 'success'));
 
   // Step 2: Search for policy on A&G
   await searchPolicy(agPage, input.policyNumber);
@@ -141,16 +134,11 @@ async function runRegistrationCorrection(task: Task, input: RegistrationCorrecti
   const oldRegNumber = await correctRegistration(agPage, input.newRegistrationNumber);
   addStep(task, createStep('ag', `Registration updated (old: ${oldRegNumber} → new: ${input.newRegistrationNumber})`, 'success'));
 
-  // Step 4: Check NIID session
-  const niidActive = await checkNIIDSession();
-  if (!niidActive) {
-    addStep(task, createStep('niid', 'NIID session expired — manual login required', 'failed', 'Please login to NIID manually and retry'));
-    throw new Error('NIID session has expired. Please login to NIID manually (npm run login:niid) and retry.');
-  }
-  addStep(task, createStep('niid', 'NIID session verified', 'success'));
+  // Step 4: Get NIID page (reuses keep-alive session)
+  const niidPage = await getNIIDPolicyPage();
+  addStep(task, createStep('niid', 'NIID session ready', 'success'));
 
   // Step 5: Search on NIID using policy number + old reg
-  const niidPage = await getPage('niid');
   await searchNIIDPolicy(niidPage, input.policyNumber, oldRegNumber);
   addStep(task, createStep('niid', `NIID search: policy ${input.policyNumber} + reg ${oldRegNumber}`, 'success'));
 
@@ -164,17 +152,17 @@ async function runRegistrationCorrection(task: Task, input: RegistrationCorrecti
 // ============================================
 
 async function runVehicleMakeCorrection(task: Task, input: VehicleMakeCorrectionInput) {
-  // Step 1: Login to A&G
-  const page = await loginToAG();
-  addStep(task, createStep('ag', 'Login to A&G', 'success'));
+  // Step 1: Get A&G page (reuses keep-alive session)
+  const page = await getAGPolicyPage();
+  addStep(task, createStep('ag', 'A&G session ready', 'success'));
 
   // Step 2: Search for policy
   await searchPolicy(page, input.policyNumber);
   addStep(task, createStep('ag', `Search policy: ${input.policyNumber}`, 'success'));
 
   // Step 3: Correct vehicle make
-  await correctVehicleMake(page, input.newVehicleMake);
-  addStep(task, createStep('ag', `Vehicle make updated to: ${input.newVehicleMake}`, 'success'));
+  await correctVehicleMake(page, input.newVehicleMake, input.newVehicleModel);
+  addStep(task, createStep('ag', `Vehicle updated to: ${input.newVehicleMake} ${input.newVehicleModel}`, 'success'));
 
   // NIID not needed
   addStep(task, createStep('niid', 'NIID update not required for vehicle make correction', 'skipped'));

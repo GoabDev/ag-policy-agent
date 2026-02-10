@@ -99,18 +99,78 @@ export function CorrectionForm({
             {errors.policyNumber && <p className="text-[10px] text-rose-500">{errors.policyNumber.message}</p>}
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              {typeConfig[selectedType].label}
-            </label>
-            <Input 
-              {...register('newValue')}
-              placeholder={typeConfig[selectedType].placeholder} 
-              className="bg-slate-950 border-slate-800 focus-visible:ring-blue-500/50"
-              disabled={isRunning}
-            />
-            {errors.newValue && <p className="text-[10px] text-rose-500">{errors.newValue.message}</p>}
-          </div>
+          {selectedType === 'registration' && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">New Registration</label>
+              <Input 
+                {...register('newValue')}
+                placeholder="e.g. ABC-123-XY" 
+                className="bg-slate-950 border-slate-800 focus-visible:ring-blue-500/50"
+                disabled={isRunning}
+              />
+              {errors.newValue && (
+                <p className="text-[10px] text-rose-500">{(errors as any).newValue.message}</p>
+              )}
+            </div>
+          )}
+
+          {selectedType === 'name' && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">First Name</label>
+                <Input 
+                  {...register('firstName')}
+                  placeholder="e.g. John" 
+                  className="bg-slate-950 border-slate-800 focus-visible:ring-blue-500/50"
+                  disabled={isRunning}
+                />
+                {(errors as any).firstName && (
+                  <p className="text-[10px] text-rose-500">{(errors as any).firstName.message}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Last Name</label>
+                <Input 
+                  {...register('lastName')}
+                  placeholder="e.g. Doe (optional)" 
+                  className="bg-slate-950 border-slate-800 focus-visible:ring-blue-500/50"
+                  disabled={isRunning}
+                />
+                {(errors as any).lastName && (
+                  <p className="text-[10px] text-rose-500">{(errors as any).lastName.message}</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {selectedType === 'vehicle_make' && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Vehicle Make</label>
+                <Input 
+                  {...register('newVehicleMake')}
+                  placeholder="e.g. Toyota" 
+                  className="bg-slate-950 border-slate-800 focus-visible:ring-blue-500/50"
+                  disabled={isRunning}
+                />
+                {(errors as any).newVehicleMake && (
+                  <p className="text-[10px] text-rose-500">{(errors as any).newVehicleMake.message}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Vehicle Model</label>
+                <Input 
+                  {...register('newVehicleModel')}
+                  placeholder="e.g. Corolla" 
+                  className="bg-slate-950 border-slate-800 focus-visible:ring-blue-500/50"
+                  disabled={isRunning}
+                />
+                {(errors as any).newVehicleModel && (
+                  <p className="text-[10px] text-rose-500">{(errors as any).newVehicleModel.message}</p>
+                )}
+              </div>
+            </>
+          )}
 
           <Button 
             type="submit" 

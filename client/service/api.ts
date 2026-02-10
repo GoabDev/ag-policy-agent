@@ -4,10 +4,20 @@ export const getStatus = () => api.get('/api/status');
 export const getLogs = () => api.get('/api/corrections/logs');
 
 export const runCorrection = (data: any) => {
-  const body: any = { type: data.type, policyNumber: data.policyNumber };
-  if (data.type === 'name') body.newName = data.newValue;
-  else if (data.type === 'registration') body.newRegistrationNumber = data.newValue;
-  else if (data.type === 'vehicle_make') body.newVehicleMake = data.newValue;
+  const body: any = { 
+    type: data.type, 
+    policyNumber: data.policyNumber 
+  };
+  
+  if (data.type === 'name') {
+    body.firstName = data.firstName;
+    body.lastName = data.lastName;
+  } else if (data.type === 'registration') {
+    body.newRegistrationNumber = data.newValue;
+  } else if (data.type === 'vehicle_make') {
+    body.newVehicleMake = data.newVehicleMake;
+    body.newVehicleModel = data.newVehicleModel;
+  }
 
   return api.post('/api/corrections/run', body);
 };

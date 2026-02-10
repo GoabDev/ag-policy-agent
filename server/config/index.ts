@@ -1,33 +1,43 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { Config } from '../types';
 
 dotenv.config();
 
-export const config = {
+function getEnv(key: string, defaultValue?: string): string {
+  const value = process.env[key] || defaultValue;
+  if (value === undefined) {
+    throw new Error(`Environment variable ${key} is missing`);
+  }
+  return value;
+}
+
+export const config: Config = {
   // A&G Platform
   ag: {
-    url: process.env.AG_URL || 'https://your-ag-platform.com',
-    username: process.env.AG_USERNAME || '',
-    password: process.env.AG_PASSWORD || '',
+    url: getEnv('AG_URL'),
+    username: getEnv('AG_USERNAME'),
+    password: getEnv('AG_PASSWORD'),
     sessionPath: path.resolve(__dirname, '../../storage/ag-session.json'),
   },
 
   // NIID
   niid: {
-    url: process.env.NIID_URL || 'https://niid.naicom.gov.ng',
-    username: process.env.NIID_USERNAME || '',
-    password: process.env.NIID_PASSWORD || '',
+    url: getEnv('NIID_URL'),
+    policyCorrectionUrl: getEnv('NIID_POLICY_CORRECTION_URL'),
+    username: getEnv('NIID_USERNAME'),
+    password: getEnv('NIID_PASSWORD'),
     sessionPath: path.resolve(__dirname, '../../storage/niid-session.json'),
   },
 
   // Server
-  port: parseInt(process.env.PORT || '3001', 10),
+  port: parseInt(getEnv('PORT', '3001'), 10),
 
   // Keep-alive interval in milliseconds
-  keepAliveInterval: (parseInt(process.env.KEEPALIVE_INTERVAL || '5', 10)) * 60 * 1000,
+  keepAliveInterval: (parseInt(getEnv('KEEPALIVE_INTERVAL', '5'), 10)) * 60 * 1000,
 
   // Browser
-  headless: process.env.HEADLESS === 'true',
+  headless: getEnv('HEADLESS', 'true') === 'true',
 
   // Paths
   storagePath: path.resolve(__dirname, '../../storage'),

@@ -1,7 +1,7 @@
 import { Page } from 'playwright';
-import { config } from '../../config';
 import { getPage, saveSession, touchSession } from '../controller';
 import { log } from '../../utils/logger';
+import { config } from '../../config';
 
 // ============================================
 // SELECTORS — Update these after mapping the real NIID site
@@ -14,23 +14,26 @@ const SELECTORS = {
     passwordField: '#password',       // TODO: update
     captchaArea: '.captcha',          // TODO: update (for detection only)
     submitButton: '#login-btn',       // TODO: update
-    dashboardIndicator: '.dashboard', // TODO: element visible after login
+    dashboardIndicator: 'internal:role=cell[name="Home My Account Logout Help"i]', // TODO: element visible after login
   },
 
   // Policy search on NIID
   search: {
-    policyNumberField: '#policy-number',    // TODO: update
-    regNumberField: '#reg-number',          // TODO: update
-    searchButton: '#search-btn',            // TODO: update
-    resultRow: '.result-row',               // TODO: update
-    resultLink: '.result-row a',            // TODO: update
+    policyNumberField: '#ctl00_MainContent_txtPolicyNo',    
+    regNumberField: '#ctl00_MainContent_txtRegNumber',          
+    searchButton: 'internal:role=button[name="Search"i]',            
+    resultRow: '.result-row',               
+    resultLink: '.result-row a',            
   },
 
   // Policy detail / correction form
   policy: {
-    regNumberField: '#niid-reg-number',     // TODO: update
-    saveButton: '#save-btn',                // TODO: update
-    successMessage: '.success-alert',       // TODO: update
+    emailField: '#MainContent_txtEmail',
+    regNumberField: '#MainContent_txtRegNo',     
+    oldLicenceNumberField: '#MainContent_txtOldRegNo',     
+    chassisNumberField: '#MainContent_txtChasisNo',     
+    saveButton: 'internal:role=button[name="Change"i]',                
+    successMessage: 'internal:text="Successfully Updated."i',       
   },
 };
 
@@ -41,7 +44,7 @@ const SELECTORS = {
 export async function checkNIIDSession(): Promise<boolean> {
   try {
     const page = await getPage('niid');
-    await page.goto(config.niid.url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
     // Check if we land on dashboard (session alive) or login page
     try {
@@ -70,19 +73,11 @@ export async function searchNIIDPolicy(
 ): Promise<void> {
   log(`Searching NIID for policy: ${policyNumber}, reg: ${oldRegNumber}`);
 
-  // Navigate to NIID search page (adjust URL as needed)
-  await page.goto(`${config.niid.url}`, { waitUntil: 'networkidle' });
-
+  // Page should already be on Change_Request.aspx via getNIIDPolicyPage()
   // Fill search fields
   await page.fill(SELECTORS.search.policyNumberField, policyNumber);
   await page.fill(SELECTORS.search.regNumberField, oldRegNumber);
   await page.click(SELECTORS.search.searchButton);
-
-  // Wait for results
-  await page.waitForSelector(SELECTORS.search.resultRow, { timeout: 20000 });
-
-  // Click into the result
-  await page.click(SELECTORS.search.resultLink);
 
   // Wait for form to load
   await page.waitForSelector(SELECTORS.policy.regNumberField, { timeout: 15000 });
@@ -100,17 +95,94 @@ export async function correctNIIDRegistration(
 ): Promise<void> {
   log(`Correcting NIID registration to: ${newRegNumber}`);
 
-  await page.fill(SELECTORS.policy.regNumberField, '');
-  await page.fill(SELECTORS.policy.regNumberField, newRegNumber);
-  await page.click(SELECTORS.policy.saveButton);
+  let dialogHandled = false;
 
-  // Wait for success
-  await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: 15000 });
+  // Set up dialog handler before clicking
+  const dialogHandler = async (dialog: any) => {
+    log(`NIID Dialog message: ${dialog.message()}`);
+    if (dialog.message().toLowerCase().includes('successfully updated')) {
+      dialogHandled = true;
+    }
+    await dialog.dismiss().catch(() => {});
+  };
 
-  // Save session after successful action
-  await saveSession('niid');
+  page.on('dialog', dialogHandler);
 
-  log('Registration correction saved on NIID ✅');
+  try {
+    // 1. Check and potentially update Email Field
+    const currentEmail = await page.inputValue(SELECTORS.policy.emailField);
+    log(`Current NIID Email: ${currentEmail}`);
+
+    if (currentEmail.includes('@') || currentEmail.toUpperCase() === 'TBA') {
+      log('Email update required. Setting to: info@aginsuranceplc.com');
+      await page.fill(SELECTORS.policy.emailField, '');
+      await page.fill(SELECTORS.policy.emailField, 'info@aginsuranceplc.com');
+    }
+
+    // 2. Update Registration Number
+    await page.fill(SELECTORS.policy.regNumberField, '');
+    await page.fill(SELECTORS.policy.regNumberField, newRegNumber);
+    await page.fill(SELECTORS.policy.oldLicenceNumberField, '');
+    await page.fill(SELECTORS.policy.oldLicenceNumberField, newRegNumber);
+    await page.click(SELECTORS.policy.saveButton);
+
+    // If successMessage is also in the DOM, wait for it. 
+    // Otherwise, we rely on the dialog having been handled.
+    try {
+      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: 5000 });
+      log('Success message detected in DOM ✅');
+    } catch {
+      if (dialogHandled) {
+        log('Success confirmed via browser dialog ✅');
+      } else {
+        throw new Error('Neither success message nor success dialog was detected');
+      }
+    }
+
+    // Save session after successful action
+    await saveSession('niid');
+    log('Registration correction saved on NIID ✅');
+
+  } finally {
+    // Clean up listener
+    page.off('dialog', dialogHandler);
+  }
+}
+
+// ============================================
+// Get NIID page already parked on Change Request
+// (skips navigation if keep-alive is active)
+// ============================================
+
+export async function getNIIDPolicyPage(): Promise<Page> {
+  const page = await getPage('niid');
+  const currentUrl = page.url();
+
+  // Detect expired session — NIID redirects to default.aspx (login page)
+  if (currentUrl.includes('/default.aspx')) {
+    log('NIID session expired (redirected to login) — manual re-login required (CAPTCHA)', 'warn');
+    throw new Error('NIID session has expired. Please login to NIID manually and retry.');
+  }
+
+  if (currentUrl.includes('Change_Request.aspx')) {
+    log('NIID already on Change Request page — skipping navigation');
+    touchSession('niid');
+    return page;
+  }
+
+  // Fallback: try navigating to the park page
+  log('NIID not on Change Request page, navigating...');
+  await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+
+  // Check if we got redirected to login
+  const landedUrl = page.url();
+  if (landedUrl.includes('/default.aspx')) {
+    log('NIID session expired after navigation — manual re-login required (CAPTCHA)', 'warn');
+    throw new Error('NIID session has expired. Please login to NIID manually and retry.');
+  }
+
+  touchSession('niid');
+  return page;
 }
 
 // Export selectors for later updating

@@ -7,7 +7,8 @@ export type CorrectionType = 'name' | 'registration' | 'vehicle_make';
 export interface NameCorrectionInput {
   type: 'name';
   policyNumber: string;
-  newName: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface RegistrationCorrectionInput {
@@ -20,6 +21,7 @@ export interface VehicleMakeCorrectionInput {
   type: 'vehicle_make';
   policyNumber: string;
   newVehicleMake: string;
+  newVehicleModel: string;
 }
 
 export type CorrectionInput =
@@ -102,4 +104,26 @@ export interface SSEEvent {
   type: SSEEventType;
   data: any;
   timestamp: string;
+}
+
+export interface Config {
+  ag: {
+    url: string;
+    username: string;
+    password: string;
+    sessionPath: string;
+  };
+  niid: {
+    url: string;
+    policyCorrectionUrl: string;
+    username: string;
+    password: string;
+    sessionPath: string;
+  };
+  port: number;
+  keepAliveInterval: number;
+  headless: boolean;
+  storagePath: string;
+  logsPath: string;
+  dashboardPath: string;
 }
