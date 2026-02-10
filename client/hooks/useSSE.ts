@@ -1,57 +1,97 @@
 import { useEffect, useState, useCallback } from 'react';
 
+export interface TaskState {
+  id: string;
+  type: string;
+  policyNumber?: string;
+  steps: any[];
+  status: 'running' | 'completed' | 'failed';
+  error?: string;
+}
+
 export function useSSE() {
   const [logs, setLogs] = useState<any[]>([]);
-  const [steps, setSteps] = useState<any[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map());
 
   const addLog = useCallback((icon: string, msg: string, time: string = new Date().toLocaleTimeString()) => {
     setLogs((prev) => [...prev.slice(-99), { icon, msg, time, id: Date.now() + Math.random() }]);
   }, []);
 
+  // Derived state
+  const activeTasks = Array.from(tasks.values()).filter(t => t.status === 'running');
+  const isRunning = activeTasks.length > 0;
+
   useEffect(() => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     let sse: EventSource;
 
     try {
-      sse = new EventSource(`${apiBase}/api/stream`);
+      sse = new EventSource(`/api/stream`);
 
       sse.onmessage = (e) => {
         const ev = JSON.parse(e.data);
         const time = new Date(ev.timestamp || Date.now()).toLocaleTimeString();
+        const taskId = ev.data?.taskId;
 
-        if (ev.type === 'task:started') {
-          setIsRunning(true);
-          setSteps([]);
-          setError(null);
-          setSuccess(null);
-          addLog('🚀', `Task started: ${ev.data?.type || ''} correction`, time);
-        } else if (ev.type === 'task:step') {
+        if (ev.type === 'task:started' && taskId) {
+          setTasks((prev) => {
+            const next = new Map(prev);
+            next.set(taskId, {
+              id: taskId,
+              type: ev.data?.type || '',
+              policyNumber: ev.data?.policyNumber || '',
+              steps: [],
+              status: 'running',
+            });
+            return next;
+          });
+          addLog('rocket', `Task started: ${ev.data?.type || ''} correction (${ev.data?.policyNumber || ''})`, time);
+
+        } else if (ev.type === 'task:step' && taskId) {
           const s = ev.data?.step;
           if (s) {
-            setSteps((prev) => [...prev, s]);
-            const icon = s.status === 'success' ? '✅' : s.status === 'failed' ? '❌' : '⏭️';
+            setTasks((prev) => {
+              const next = new Map(prev);
+              const task = next.get(taskId);
+              if (task) {
+                next.set(taskId, { ...task, steps: [...task.steps, s] });
+              }
+              return next;
+            });
+            const icon = s.status === 'success' ? 'check-circle' : s.status === 'failed' ? 'x-circle' : 'skip-forward';
             addLog(icon, `[${s.site.toUpperCase()}] ${s.action}`, time);
           }
-        } else if (ev.type === 'task:completed') {
-          setIsRunning(false);
-          setSuccess('Correction completed successfully!');
-          addLog('🎉', 'Task completed', time);
-        } else if (ev.type === 'task:failed') {
-          setIsRunning(false);
-          setError(ev.data?.error || 'Task failed');
-          addLog('❌', `Task failed: ${ev.data?.error || ''}`, time);
+
+        } else if (ev.type === 'task:completed' && taskId) {
+          setTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, { ...task, status: 'completed' });
+            }
+            return next;
+          });
+          addLog('check-circle-2', 'Task completed', time);
+
+        } else if (ev.type === 'task:failed' && taskId) {
+          setTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, { ...task, status: 'failed', error: ev.data?.error });
+            }
+            return next;
+          });
+          addLog('x-circle', `Task failed: ${ev.data?.error || ''}`, time);
+
         } else if (ev.type === 'log') {
           const d = ev.data;
-          const icon = d?.level === 'error' ? '❌' : d?.level === 'warn' ? '⚠️' : 'ℹ️';
+          const icon = d?.level === 'error' ? 'x-circle' : d?.level === 'warn' ? 'alert-triangle' : 'info';
           addLog(icon, d?.message || '', time);
         }
       };
 
       sse.onerror = () => {
-        // addLog('⚠️', 'Connection lost — retrying...');
+        // SSE auto-reconnects
       };
     } catch (err) {
       console.error('SSE Error:', err);
@@ -62,5 +102,21 @@ export function useSSE() {
     };
   }, [addLog]);
 
-  return { logs, setLogs, steps, setSteps, isRunning, setIsRunning, error, setError, success, setSuccess, addLog };
+  // Clean up completed/failed tasks after 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTasks((prev) => {
+        const next = new Map(prev);
+        for (const [id, task] of next) {
+          if (task.status !== 'running') {
+            next.delete(id);
+          }
+        }
+        return next.size !== prev.size ? next : prev;
+      });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return { logs, setLogs, tasks, activeTasks, isRunning, addLog };
 }

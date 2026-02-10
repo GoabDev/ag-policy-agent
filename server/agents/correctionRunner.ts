@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid';
+import { Page } from 'playwright';
 import {
   CorrectionInput,
   Task,
@@ -6,13 +7,18 @@ import {
   NameCorrectionInput,
   RegistrationCorrectionInput,
   VehicleMakeCorrectionInput,
+  Worker,
+  SiteName,
 } from '../types';
 import { log, emitEvent, saveTaskLog } from '../utils/logger';
-import { getAGPolicyPage, searchPolicy, correctName, correctRegistration, correctVehicleMake } from '../browser/actions/ag';
-import { getNIIDPolicyPage, searchNIIDPolicy, correctNIIDRegistration } from '../browser/actions/niid';
+import { searchPolicy, correctName, correctRegistration, correctVehicleMake, loginToAG, navigateToPolicy, AG_SELECTORS } from '../browser/actions/ag';
+import { searchNIIDPolicy, correctNIIDRegistration } from '../browser/actions/niid';
+import { acquireWorker, releaseWorker } from '../browser/workerPool';
+import { touchSession } from '../browser/controller';
+import { config } from '../config';
 
-// Task queue
-let currentTask: Task | null = null;
+// Running tasks (supports multiple concurrent tasks)
+const runningTasks: Map<string, Task> = new Map();
 const taskHistory: Task[] = [];
 
 // ============================================
@@ -40,14 +46,80 @@ function createStep(
 }
 
 // ============================================
-// Run Correction
+// Worker Page Helpers (equivalent to getAGPolicyPage/getNIIDPolicyPage but for workers)
+// ============================================
+
+async function prepareWorkerAGPage(worker: Worker): Promise<Page> {
+  const page = worker.pages.get('ag')!;
+  const currentUrl = page.url();
+
+  if (currentUrl.includes('ErrorPage.aspx')) {
+    log(`Worker ${worker.id}: A&G session expired, re-logging in...`, 'warn');
+    await page.goto(config.ag.url, { waitUntil: 'networkidle' });
+    await page.fill('internal:role=textbox[name="Username"i]', config.ag.username);
+    await page.fill('internal:role=textbox[name="Password"i]', config.ag.password);
+    await page.click('internal:role=button[name="Logon"i]');
+    await page.waitForSelector('internal:text="Dashboard"', { timeout: 30000 });
+    // Navigate to Update Policy
+    await page.click('internal:role=link[name=" Policy Operations "i]');
+    await page.click('internal:role=link[name="Update Policy"i]');
+    return page;
+  }
+
+  if (currentUrl.includes('Policy_Update.aspx')) {
+    touchSession('ag');
+    return page;
+  }
+
+  // Fallback: full login + navigate
+  log(`Worker ${worker.id}: A&G not on Update Policy page, logging in...`);
+  await page.goto(config.ag.url, { waitUntil: 'networkidle' });
+
+  // Check if already logged in
+  try {
+    await page.waitForSelector('internal:text="Dashboard"', { timeout: 5000 });
+  } catch {
+    await page.fill('internal:role=textbox[name="Username"i]', config.ag.username);
+    await page.fill('internal:role=textbox[name="Password"i]', config.ag.password);
+    await page.click('internal:role=button[name="Logon"i]');
+    await page.waitForSelector('internal:text="Dashboard"', { timeout: 30000 });
+  }
+
+  await page.click('internal:role=link[name=" Policy Operations "i]');
+  await page.click('internal:role=link[name="Update Policy"i]');
+  return page;
+}
+
+async function prepareWorkerNIIDPage(worker: Worker): Promise<Page> {
+  const page = worker.pages.get('niid')!;
+  const currentUrl = page.url();
+
+  if (currentUrl.includes('/default.aspx')) {
+    throw new Error('NIID session has expired. Please login to NIID manually and retry.');
+  }
+
+  if (currentUrl.includes('Change_Request.aspx')) {
+    touchSession('niid');
+    return page;
+  }
+
+  // Navigate to park page
+  await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+
+  const landedUrl = page.url();
+  if (landedUrl.includes('/default.aspx')) {
+    throw new Error('NIID session has expired. Please login to NIID manually and retry.');
+  }
+
+  touchSession('niid');
+  return page;
+}
+
+// ============================================
+// Run Correction (parallel-safe)
 // ============================================
 
 export async function runCorrection(input: CorrectionInput): Promise<Task> {
-  if (currentTask && currentTask.status === 'running') {
-    throw new Error('A task is already running. Please wait for it to complete.');
-  }
-
   const task: Task = {
     id: uuid(),
     correction: input,
@@ -56,20 +128,40 @@ export async function runCorrection(input: CorrectionInput): Promise<Task> {
     createdAt: new Date().toISOString(),
   };
 
-  currentTask = task;
-  emitEvent('task:started', { taskId: task.id, type: input.type });
-  log(`🚀 Starting correction task: ${task.id} (${input.type})`);
+  runningTasks.set(task.id, task);
+  emitEvent('task:started', { taskId: task.id, type: input.type, policyNumber: input.policyNumber });
+  log(`Starting correction task: ${task.id} (${input.type}) — policy: ${input.policyNumber}`);
+
+  // Determine which sites this correction needs
+  const sites: SiteName[] = input.type === 'registration' ? ['ag', 'niid'] : ['ag'];
+
+  // Acquire a worker from the pool
+  let worker: Worker;
+  try {
+    worker = await acquireWorker(sites);
+    addStep(task, createStep('ag', `Worker ${worker.id} assigned`, 'success'));
+  } catch (err: any) {
+    task.status = 'failed';
+    task.error = `Failed to acquire worker: ${err.message}`;
+    task.completedAt = new Date().toISOString();
+    addStep(task, createStep('ag', 'Failed to acquire worker', 'failed', err.message));
+    emitEvent('task:failed', { taskId: task.id, error: task.error });
+    runningTasks.delete(task.id);
+    taskHistory.unshift(task);
+    saveTaskLog(task.id, task);
+    return task;
+  }
 
   try {
     switch (input.type) {
       case 'name':
-        await runNameCorrection(task, input);
+        await runNameCorrection(task, input, worker);
         break;
       case 'registration':
-        await runRegistrationCorrection(task, input);
+        await runRegistrationCorrection(task, input, worker);
         break;
       case 'vehicle_make':
-        await runVehicleMakeCorrection(task, input);
+        await runVehicleMakeCorrection(task, input, worker);
         break;
       default:
         throw new Error(`Unknown correction type: ${(input as any).type}`);
@@ -78,20 +170,23 @@ export async function runCorrection(input: CorrectionInput): Promise<Task> {
     task.status = 'completed';
     task.completedAt = new Date().toISOString();
     emitEvent('task:completed', { taskId: task.id });
-    log(`✅ Task completed: ${task.id}`);
+    log(`Task completed: ${task.id}`);
   } catch (err: any) {
     task.status = 'failed';
     task.error = err.message;
     task.completedAt = new Date().toISOString();
     addStep(task, createStep('ag', 'error', 'failed', err.message));
     emitEvent('task:failed', { taskId: task.id, error: err.message });
-    log(`❌ Task failed: ${task.id} — ${err.message}`, 'error');
+    log(`Task failed: ${task.id} — ${err.message}`, 'error');
+  } finally {
+    // Always release the worker
+    await releaseWorker(worker.id);
   }
 
   // Save to history
+  runningTasks.delete(task.id);
   taskHistory.unshift(task);
   saveTaskLog(task.id, task);
-  currentTask = null;
 
   return task;
 }
@@ -100,20 +195,16 @@ export async function runCorrection(input: CorrectionInput): Promise<Task> {
 // Name Correction (A&G only)
 // ============================================
 
-async function runNameCorrection(task: Task, input: NameCorrectionInput) {
-  // Step 1: Get A&G page (reuses keep-alive session)
-  const page = await getAGPolicyPage();
+async function runNameCorrection(task: Task, input: NameCorrectionInput, worker: Worker) {
+  const page = await prepareWorkerAGPage(worker);
   addStep(task, createStep('ag', 'A&G session ready', 'success'));
 
-  // Step 2: Search for policy
   await searchPolicy(page, input.policyNumber);
   addStep(task, createStep('ag', `Search policy: ${input.policyNumber}`, 'success'));
 
-  // Step 3: Correct name
   await correctName(page, input.firstName, input.lastName);
   addStep(task, createStep('ag', `Name updated to: ${input.firstName} ${input.lastName}`, 'success'));
 
-  // NIID not needed
   addStep(task, createStep('niid', 'NIID update not required for name correction', 'skipped'));
 }
 
@@ -121,28 +212,22 @@ async function runNameCorrection(task: Task, input: NameCorrectionInput) {
 // Registration Correction (Both sites)
 // ============================================
 
-async function runRegistrationCorrection(task: Task, input: RegistrationCorrectionInput) {
-  // Step 1: Get A&G page (reuses keep-alive session)
-  const agPage = await getAGPolicyPage();
+async function runRegistrationCorrection(task: Task, input: RegistrationCorrectionInput, worker: Worker) {
+  const agPage = await prepareWorkerAGPage(worker);
   addStep(task, createStep('ag', 'A&G session ready', 'success'));
 
-  // Step 2: Search for policy on A&G
   await searchPolicy(agPage, input.policyNumber);
   addStep(task, createStep('ag', `Search policy: ${input.policyNumber}`, 'success'));
 
-  // Step 3: Correct reg on A&G and get old reg number
   const oldRegNumber = await correctRegistration(agPage, input.newRegistrationNumber);
   addStep(task, createStep('ag', `Registration updated (old: ${oldRegNumber} → new: ${input.newRegistrationNumber})`, 'success'));
 
-  // Step 4: Get NIID page (reuses keep-alive session)
-  const niidPage = await getNIIDPolicyPage();
+  const niidPage = await prepareWorkerNIIDPage(worker);
   addStep(task, createStep('niid', 'NIID session ready', 'success'));
 
-  // Step 5: Search on NIID using policy number + old reg
   await searchNIIDPolicy(niidPage, input.policyNumber, oldRegNumber);
   addStep(task, createStep('niid', `NIID search: policy ${input.policyNumber} + reg ${oldRegNumber}`, 'success'));
 
-  // Step 6: Correct reg on NIID
   await correctNIIDRegistration(niidPage, input.newRegistrationNumber);
   addStep(task, createStep('niid', `NIID registration updated to: ${input.newRegistrationNumber}`, 'success'));
 }
@@ -151,20 +236,16 @@ async function runRegistrationCorrection(task: Task, input: RegistrationCorrecti
 // Vehicle Make Correction (A&G only)
 // ============================================
 
-async function runVehicleMakeCorrection(task: Task, input: VehicleMakeCorrectionInput) {
-  // Step 1: Get A&G page (reuses keep-alive session)
-  const page = await getAGPolicyPage();
+async function runVehicleMakeCorrection(task: Task, input: VehicleMakeCorrectionInput, worker: Worker) {
+  const page = await prepareWorkerAGPage(worker);
   addStep(task, createStep('ag', 'A&G session ready', 'success'));
 
-  // Step 2: Search for policy
   await searchPolicy(page, input.policyNumber);
   addStep(task, createStep('ag', `Search policy: ${input.policyNumber}`, 'success'));
 
-  // Step 3: Correct vehicle make
   await correctVehicleMake(page, input.newVehicleMake, input.newVehicleModel);
   addStep(task, createStep('ag', `Vehicle updated to: ${input.newVehicleMake} ${input.newVehicleModel}`, 'success'));
 
-  // NIID not needed
   addStep(task, createStep('niid', 'NIID update not required for vehicle make correction', 'skipped'));
 }
 
@@ -172,8 +253,8 @@ async function runVehicleMakeCorrection(task: Task, input: VehicleMakeCorrection
 // Getters
 // ============================================
 
-export function getCurrentTask(): Task | null {
-  return currentTask;
+export function getRunningTasks(): Task[] {
+  return Array.from(runningTasks.values());
 }
 
 export function getTaskHistory(): Task[] {

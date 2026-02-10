@@ -24,6 +24,7 @@ export async function launchBrowser(): Promise<Browser> {
   log('Launching browser...');
   browser = await chromium.launch({
     headless: config.headless,
+    channel: 'chrome',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -146,6 +147,30 @@ export function getSessionStatus(site: SiteName) {
       ? fs.statSync(getSessionPath(site)).mtime.toISOString()
       : undefined,
   };
+}
+
+// ============================================
+// Worker Context (isolated context for parallel corrections)
+// ============================================
+
+export async function createWorkerContext(site: SiteName): Promise<{ context: BrowserContext; page: Page }> {
+  const b = await launchBrowser();
+  const sessionPath = getSessionPath(site);
+
+  let context: BrowserContext;
+
+  if (hasStoredSession(site)) {
+    try {
+      context = await b.newContext({ storageState: sessionPath });
+    } catch {
+      context = await b.newContext();
+    }
+  } else {
+    context = await b.newContext();
+  }
+
+  const page = await context.newPage();
+  return { context, page };
 }
 
 // Update last activity timestamp

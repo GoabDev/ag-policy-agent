@@ -53,6 +53,11 @@ server/*.log
 server/.DS_Store
 server/Thumbs.db
 
+# Electron
+electron/node_modules/
+electron/dist/
+electron/package-lock.json
+
 # Root level
 .DS_Store
 Thumbs.db

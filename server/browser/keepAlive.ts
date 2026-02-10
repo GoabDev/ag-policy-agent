@@ -5,8 +5,10 @@ import {
   saveSession,
   touchSession,
   getSessionStatus,
+  clearSession,
 } from "./controller";
 import { loginToAG } from "./actions/ag";
+import { openLoginPopup } from "./manualLogin";
 import { log, emitEvent } from "../utils/logger";
 import { SiteName } from "../types";
 
@@ -46,7 +48,7 @@ async function handleExpiredSession(site: SiteName, page: Page) {
     emitEvent("keepalive:ping", { site: "ag", status: "recovered" });
   } else if (site === "niid") {
     log(
-      `Session expired for NIID — manual re-login required (CAPTCHA)`,
+      `Session expired for NIID — opening manual login popup (CAPTCHA)`,
       "warn",
     );
     stopHeartbeat("niid");
@@ -55,6 +57,18 @@ async function handleExpiredSession(site: SiteName, page: Page) {
       isActive: false,
       reason: "session_expired",
     });
+
+    // Clear stale session so the server picks up the fresh one after login
+    await clearSession("niid");
+
+    // Spawn a headed popup for the user to log in
+    const success = await openLoginPopup("niid");
+    if (success) {
+      log("NIID session restored via manual login, restarting heartbeat");
+      startHeartbeat("niid");
+    } else {
+      log("NIID manual login failed or timed out", "error");
+    }
   }
 }
 
@@ -137,8 +151,10 @@ export function startHeartbeat(site: SiteName) {
   // Stop existing heartbeat if any
   stopHeartbeat(site);
 
+  const interval = site === "niid" ? config.niidKeepAliveInterval : config.keepAliveInterval;
+
   log(
-    `Starting heartbeat for ${site.toUpperCase()} (every ${config.keepAliveInterval / 60000} min)`,
+    `Starting heartbeat for ${site.toUpperCase()} (every ${interval / 60000} min)`,
   );
 
   // Send first heartbeat immediately
@@ -147,7 +163,7 @@ export function startHeartbeat(site: SiteName) {
   // Then on interval
   const timer = setInterval(
     () => sendHeartbeat(site),
-    config.keepAliveInterval,
+    interval,
   );
   heartbeatTimers.set(site, timer);
 }

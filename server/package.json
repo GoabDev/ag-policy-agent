@@ -4,6 +4,9 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "build:client": "cd ../client && npm run build",
+    "dev": "ts-node app.ts",
+    "start": "npm run build:client && ts-node app.ts",
     "login:niid": "ts-node browser/manualLogin.ts niid",
     "login:ag": "ts-node browser/manualLogin.ts ag",
     "keepalive": "ts-node browser/keepAlive.ts"

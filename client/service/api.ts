@@ -23,4 +23,6 @@ export const runCorrection = (data: any) => {
 };
 
 export const loginAG = () => api.post('/api/sessions/login-ag');
+export const loginNIID = () => api.post('/api/sessions/login-niid');
 export const startKeepAlive = () => api.post('/api/sessions/keepalive');
+export const checkBrowser = () => api.get('/api/check-browser');

@@ -79,12 +79,32 @@ export interface ApiResponse<T = any> {
 
 export interface AgentStatus {
   isRunning: boolean;
-  currentTask?: Task;
+  runningTasks: Task[];
+  workerPool: WorkerPoolStatus;
   sessions: {
     ag: SessionStatus;
     niid: SessionStatus;
   };
   uptime: number;
+}
+
+// ============================================
+// Worker Pool
+// ============================================
+
+export interface Worker {
+  id: string;
+  contexts: Map<SiteName, import('playwright').BrowserContext>;
+  pages: Map<SiteName, import('playwright').Page>;
+  busy: boolean;
+}
+
+export interface WorkerPoolStatus {
+  total: number;
+  busy: number;
+  available: number;
+  maxWorkers: number;
+  queueLength: number;
 }
 
 // ============================================
@@ -97,6 +117,8 @@ export type SSEEventType =
   | 'task:completed'
   | 'task:failed'
   | 'session:status'
+  | 'session:login_required'
+  | 'session:login_failed'
   | 'keepalive:ping'
   | 'log';
 
@@ -122,6 +144,8 @@ export interface Config {
   };
   port: number;
   keepAliveInterval: number;
+  niidKeepAliveInterval: number;
+  maxWorkers: number;
   headless: boolean;
   storagePath: string;
   logsPath: string;
