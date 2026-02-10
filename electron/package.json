@@ -1,0 +1,73 @@
+{
+  "name": "ag-policy-agent",
+  "version": "1.0.0",
+  "description": "A&G Policy Correction Agent - Desktop App",
+  "main": "main.js",
+  "author": "Ajogu Joseph",
+  "scripts": {
+    "start": "electron .",
+    "build:server": "cd ../server && npx tsc",
+    "build:client": "cd ../client && npm run build",
+    "build:all": "npm run build:client && npm run build:server",
+    "dist": "npm run build:all && electron-builder",
+    "dist:win": "npm run build:all && electron-builder --win",
+    "dist:mac": "npm run build:all && electron-builder --mac"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.ag-policy-agent.automation",
+    "productName": "A&G Policy Agent",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html"
+    ],
+    "extraResources": [
+      {
+        "from": "../server/dist",
+        "to": "server/dist",
+        "filter": ["**/*.js", "**/*.json"]
+      },
+      {
+        "from": "../server/node_modules",
+        "to": "server/node_modules"
+      },
+      {
+        "from": "../server/.env",
+        "to": "server/.env"
+      },
+      {
+        "from": "../server/package.json",
+        "to": "server/package.json"
+      },
+      {
+        "from": "../client/out",
+        "to": "client/out"
+      },
+      {
+        "from": "../storage",
+        "to": "storage",
+        "filter": ["**/*", "!logs/**"]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
