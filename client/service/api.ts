@@ -17,11 +17,18 @@ export const runCorrection = (data: any) => {
   } else if (data.type === 'vehicle_make') {
     body.newVehicleMake = data.newVehicleMake;
     body.newVehicleModel = data.newVehicleModel;
+  } else if (data.type === 'reg_and_chassis') {
+    body.newRegistrationNumber = data.newRegistrationNumber;
+    body.newChassisNumber = data.newChassisNumber;
+  } else if (data.type === 'chassis') {
+    body.newChassisNumber = data.newChassisNumber;
   }
 
   return api.post('/api/corrections/run', body);
 };
 
+export const getVehicleData = () => api.get('/api/vehicle-data');
+export const refreshVehicleData = () => api.get('/api/vehicle-data?refresh=true');
 export const loginAG = () => api.post('/api/sessions/login-ag');
 export const loginNIID = () => api.post('/api/sessions/login-niid');
 export const startKeepAlive = () => api.post('/api/sessions/keepalive');

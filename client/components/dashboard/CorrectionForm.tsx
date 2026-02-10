@@ -1,14 +1,17 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Combobox } from '@/components/ui/combobox';
 import { RefreshCw, Send, Layers, Pin, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { correctionSchema, type CorrectionFormValues } from '@/schema/correction';
 import { Badge } from '@/components/ui/badge';
 import { useRunCorrection } from '@/queries/useCorrections';
+import { getVehicleData, refreshVehicleData } from '@/service/api';
 import type { TaskState } from '@/hooks/useSSE';
 
 
@@ -40,6 +43,39 @@ export function CorrectionForm({
   });
 
   const selectedType = watch('type');
+  const selectedMake = watch('newVehicleMake');
+
+  const queryClient = useQueryClient();
+
+  const { data: vehicleData, isLoading: isLoadingVehicles, error: vehicleError } = useQuery({
+    queryKey: ['vehicle-data'],
+    queryFn: getVehicleData,
+    refetchInterval: (query) => {
+      const status = (query.state.data as any)?.modelFetchStatus;
+      return status?.inProgress ? 5000 : false;
+    },
+  });
+
+  // axios interceptor strips response.data, so vehicleData = { success, data: { makes, models }, modelFetchStatus }
+  const vd = (vehicleData as any)?.data ?? vehicleData;
+  const fetchStatus = (vehicleData as any)?.modelFetchStatus;
+  const makes: string[] = vd?.makes ?? [];
+  const modelsForMake: string[] = selectedMake
+    ? (vd?.models?.[selectedMake] ?? [])
+    : [];
+
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const handleRefreshVehicleData = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshVehicleData();
+      queryClient.invalidateQueries({ queryKey: ['vehicle-data'] });
+    } catch {
+      // error will show via vehicleError
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const onSubmit = (data: CorrectionFormValues) => {
     runMutation.mutate(data);
@@ -65,15 +101,17 @@ export function CorrectionForm({
           onValueChange={(v) => setValue('type', v as any)}
           className="mb-6"
         >
-          <TabsList className="grid grid-cols-3 bg-background p-1 h-10 border border-border">
+          <TabsList className="grid grid-cols-5 bg-background p-1 h-10 border border-border">
             <TabsTrigger value="registration" className="text-xs data-[state=active]:bg-secondary">Reg No.</TabsTrigger>
             <TabsTrigger value="name" className="text-xs data-[state=active]:bg-secondary">Name</TabsTrigger>
             <TabsTrigger value="vehicle_make" className="text-xs data-[state=active]:bg-secondary">Vehicle</TabsTrigger>
+            <TabsTrigger value="reg_and_chassis" className="text-xs data-[state=active]:bg-secondary">Reg & Chas</TabsTrigger>
+            <TabsTrigger value="chassis" className="text-xs data-[state=active]:bg-secondary">Chassis</TabsTrigger>
           </TabsList>
         </Tabs>
 
         <div className="text-[11px] text-muted-foreground mb-6 flex items-center gap-2">
-          {selectedType === 'registration'
+          {(selectedType === 'registration' || selectedType === 'reg_and_chassis')
             ? <><RefreshCw className="w-3 h-3" /> This correction updates both A&G and NIID</>
             : <><Pin className="w-3 h-3" /> This correction updates A&G platform only</>}
         </div>
@@ -132,26 +170,107 @@ export function CorrectionForm({
 
           {selectedType === 'vehicle_make' && (
             <>
+              <div className="flex items-center justify-between py-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {(isLoadingVehicles || fetchStatus?.inProgress) && (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      {fetchStatus?.inProgress
+                        ? `Loading models... ${fetchStatus.processed}/${fetchStatus.total} makes`
+                        : 'Loading vehicle data...'}
+                    </>
+                  )}
+                  {vehicleError && (
+                    <span className="text-destructive">
+                      Failed to load vehicle data: {(vehicleError as Error).message}
+                    </span>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-[10px] text-muted-foreground hover:text-foreground"
+                  onClick={handleRefreshVehicleData}
+                  disabled={isRefreshing || fetchStatus?.inProgress}
+                >
+                  <RefreshCw className={`w-3 h-3 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Update Makes & Models
+                </Button>
+              </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vehicle Make</label>
-                <Input
-                  {...register('newVehicleMake')}
-                  placeholder="e.g. Toyota"
-                  className="bg-background border-border focus-visible:ring-primary/50"
-                />
+                {makes.length > 0 ? (
+                  <Combobox
+                    options={makes}
+                    value={selectedMake || ''}
+                    onChange={(val) => {
+                      setValue('newVehicleMake', val);
+                      setValue('newVehicleModel', ''); // Reset model when make changes
+                    }}
+                    placeholder="Select vehicle make..."
+                    searchPlaceholder="Search makes..."
+                  />
+                ) : (
+                  <Input
+                    {...register('newVehicleMake')}
+                    placeholder="e.g. Toyota"
+                    className="bg-background border-border focus-visible:ring-primary/50"
+                  />
+                )}
                 {(errors as any).newVehicleMake && (
                   <p className="text-[10px] text-destructive">{(errors as any).newVehicleMake.message}</p>
                 )}
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vehicle Model</label>
-                <Input
-                  {...register('newVehicleModel')}
-                  placeholder="e.g. Corolla"
-                  className="bg-background border-border focus-visible:ring-primary/50"
-                />
+                {modelsForMake.length > 0 ? (
+                  <Combobox
+                    options={modelsForMake}
+                    value={watch('newVehicleModel') || ''}
+                    onChange={(val) => setValue('newVehicleModel', val)}
+                    placeholder="Select vehicle model..."
+                    searchPlaceholder="Search models..."
+                  />
+                ) : (
+                  <Input
+                    {...register('newVehicleModel')}
+                    placeholder={selectedMake ? "No models loaded" : "Select a make first"}
+                    className="bg-background border-border focus-visible:ring-primary/50"
+                    disabled={!selectedMake}
+                  />
+                )}
                 {(errors as any).newVehicleModel && (
                   <p className="text-[10px] text-destructive">{(errors as any).newVehicleModel.message}</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {(selectedType === 'reg_and_chassis' || selectedType === 'chassis') && (
+            <>
+              {selectedType === 'reg_and_chassis' && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">New Registration</label>
+                  <Input
+                    {...register('newRegistrationNumber')}
+                    placeholder="e.g. ABC-123-XY"
+                    className="bg-background border-border focus-visible:ring-primary/50"
+                  />
+                  {(errors as any).newRegistrationNumber && (
+                    <p className="text-[10px] text-destructive">{(errors as any).newRegistrationNumber.message}</p>
+                  )}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">New Chassis Number</label>
+                <Input
+                  {...register('newChassisNumber')}
+                  placeholder="e.g. CHAS123456789"
+                  className="bg-background border-border focus-visible:ring-primary/50"
+                />
+                {(errors as any).newChassisNumber && (
+                  <p className="text-[10px] text-destructive">{(errors as any).newChassisNumber.message}</p>
                 )}
               </div>
             </>

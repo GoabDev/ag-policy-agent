@@ -1,9 +1,9 @@
-import axios from 'axios';
+import axios from "axios";
 
 const api = axios.create({
-  baseURL: '',
+  baseURL: "",
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -12,9 +12,12 @@ api.interceptors.response.use(
   (response) => response.data,
   (error) => {
     // Standardize error handling
-    const message = error.response?.data?.error || error.message || 'An unexpected error occurred';
+    const message =
+      error.response?.data?.error ||
+      error.message ||
+      "An unexpected error occurred";
     return Promise.reject(new Error(message));
-  }
+  },
 );
 
 export default api;

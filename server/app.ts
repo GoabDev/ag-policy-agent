@@ -65,10 +65,10 @@ app.post("/api/corrections/run", async (req, res) => {
     // Validate based on type
     switch (input.type) {
       case "name":
-        if (!(input as any).newName) {
+        if (!(input as any).firstName || !(input as any).lastName) {
           return res
             .status(400)
-            .json({ success: false, error: "Missing newName" });
+            .json({ success: false, error: "Missing firstName or lastName" });
         }
         break;
       case "registration":
@@ -83,6 +83,23 @@ app.post("/api/corrections/run", async (req, res) => {
           return res
             .status(400)
             .json({ success: false, error: "Missing newVehicleMake" });
+        }
+        break;
+      case "reg_and_chassis":
+        if (!(input as any).newRegistrationNumber || !(input as any).newChassisNumber) {
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error: "Missing newRegistrationNumber or newChassisNumber",
+            });
+        }
+        break;
+      case "chassis":
+        if (!(input as any).newChassisNumber) {
+          return res
+            .status(400)
+            .json({ success: false, error: "Missing newChassisNumber" });
         }
         break;
       default:
@@ -169,6 +186,18 @@ app.post("/api/sessions/keepalive", async (req, res) => {
   try {
     startAllHeartbeats();
     res.json({ success: true, data: { message: "Heartbeats started" } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Vehicle makes & models data
+app.get("/api/vehicle-data", async (req, res) => {
+  try {
+    const { fetchVehicleData, getModelFetchStatus } = await import("./browser/actions/ag");
+    const forceRefresh = req.query.refresh === "true";
+    const data = await fetchVehicleData(forceRefresh);
+    res.json({ success: true, data, modelFetchStatus: getModelFetchStatus() });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

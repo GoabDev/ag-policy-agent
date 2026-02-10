@@ -19,6 +19,15 @@ export const correctionSchema = z.discriminatedUnion('type', [
     newVehicleMake: z.string().trim().min(1, 'Vehicle make is required'),
     newVehicleModel: z.string().trim().min(1, 'Vehicle model is required'),
   }),
+  baseSchema.extend({
+    type: z.literal('reg_and_chassis'),
+    newRegistrationNumber: z.string().trim().min(1, 'New registration is required'),
+    newChassisNumber: z.string().trim().min(1, 'New chassis number is required'),
+  }),
+  baseSchema.extend({
+    type: z.literal('chassis'),
+    newChassisNumber: z.string().trim().min(1, 'New chassis number is required'),
+  }),
 ]);
 
 export type CorrectionFormValues = z.infer<typeof correctionSchema>;
@@ -27,4 +36,6 @@ export const typeConfig = {
   registration: { label: 'New Registration Number', placeholder: 'e.g. ABC-123-XY' },
   name: { label: 'Name Correction', placeholder: '' },
   vehicle_make: { label: 'Vehicle Correction', placeholder: '' },
+  reg_and_chassis: { label: 'Registration & Chassis', placeholder: '' },
+  chassis: { label: 'Chassis Correction', placeholder: '' },
 };

@@ -7,12 +7,14 @@ import {
   NameCorrectionInput,
   RegistrationCorrectionInput,
   VehicleMakeCorrectionInput,
+  RegAndChassisCorrectionInput,
+  ChassisCorrectionInput,
   Worker,
   SiteName,
 } from '../types';
 import { log, emitEvent, saveTaskLog } from '../utils/logger';
-import { searchPolicy, correctName, correctRegistration, correctVehicleMake, loginToAG, navigateToPolicy, AG_SELECTORS } from '../browser/actions/ag';
-import { searchNIIDPolicy, correctNIIDRegistration } from '../browser/actions/niid';
+import { searchPolicy, correctName, correctRegistration, correctRegandChasis, correctChassis, correctVehicleMake, loginToAG, navigateToPolicy, AG_SELECTORS } from '../browser/actions/ag';
+import { searchNIIDPolicy, correctNIIDRegistration, correctNIIDRegAndChassis, correctNIIDChassis } from '../browser/actions/niid';
 import { acquireWorker, releaseWorker } from '../browser/workerPool';
 import { touchSession } from '../browser/controller';
 import { config } from '../config';
@@ -133,7 +135,7 @@ export async function runCorrection(input: CorrectionInput): Promise<Task> {
   log(`Starting correction task: ${task.id} (${input.type}) — policy: ${input.policyNumber}`);
 
   // Determine which sites this correction needs
-  const sites: SiteName[] = input.type === 'registration' ? ['ag', 'niid'] : ['ag'];
+  const sites: SiteName[] = (input.type === 'registration' || input.type === 'reg_and_chassis' || input.type === 'chassis') ? ['ag', 'niid'] : ['ag'];
 
   // Acquire a worker from the pool
   let worker: Worker;
@@ -162,6 +164,12 @@ export async function runCorrection(input: CorrectionInput): Promise<Task> {
         break;
       case 'vehicle_make':
         await runVehicleMakeCorrection(task, input, worker);
+        break;
+      case 'reg_and_chassis':
+        await runRegAndChassisCorrection(task, input, worker);
+        break;
+      case 'chassis':
+        await runChassisCorrection(task, input, worker);
         break;
       default:
         throw new Error(`Unknown correction type: ${(input as any).type}`);
@@ -247,6 +255,59 @@ async function runVehicleMakeCorrection(task: Task, input: VehicleMakeCorrection
   addStep(task, createStep('ag', `Vehicle updated to: ${input.newVehicleMake} ${input.newVehicleModel}`, 'success'));
 
   addStep(task, createStep('niid', 'NIID update not required for vehicle make correction', 'skipped'));
+}
+
+// ============================================
+// Reg and Chassis Correction (Both sites)
+// ============================================
+
+async function runRegAndChassisCorrection(task: Task, input: RegAndChassisCorrectionInput, worker: Worker) {
+  const agPage = await prepareWorkerAGPage(worker);
+  addStep(task, createStep('ag', 'A&G session ready', 'success'));
+
+  await searchPolicy(agPage, input.policyNumber);
+  addStep(task, createStep('ag', `Search policy: ${input.policyNumber}`, 'success'));
+
+  const oldRegNumber = await correctRegandChasis(agPage, input.newRegistrationNumber, input.newChassisNumber);
+  addStep(task, createStep('ag', `Registration updated (old: ${oldRegNumber} → new: ${input.newRegistrationNumber}) + Chassis updated to: ${input.newChassisNumber}`, 'success'));
+
+  const niidPage = await prepareWorkerNIIDPage(worker);
+  addStep(task, createStep('niid', 'NIID session ready', 'success'));
+
+  await searchNIIDPolicy(niidPage, input.policyNumber, oldRegNumber);
+  addStep(task, createStep('niid', `NIID search: policy ${input.policyNumber} + reg ${oldRegNumber}`, 'success'));
+
+  await correctNIIDRegAndChassis(niidPage, input.newRegistrationNumber, input.newChassisNumber);
+  addStep(task, createStep('niid', `NIID registration updated to: ${input.newRegistrationNumber} + chassis updated to: ${input.newChassisNumber}`, 'success'));
+}
+
+// ============================================
+// Chassis Correction (Both sites)
+// ============================================
+
+async function runChassisCorrection(task: Task, input: ChassisCorrectionInput, worker: Worker) {
+  // --- A&G ---
+  const agPage = await prepareWorkerAGPage(worker);
+  addStep(task, createStep('ag', 'A&G session ready', 'success'));
+
+  await searchPolicy(agPage, input.policyNumber);
+  addStep(task, createStep('ag', `Search policy: ${input.policyNumber}`, 'success'));
+
+  // Read the current reg number before correcting (needed for NIID search)
+  const currentRegNumber = await agPage.inputValue('internal:role=textbox[name="Rgeistration No"i]');
+
+  await correctChassis(agPage, input.newChassisNumber);
+  addStep(task, createStep('ag', `Chassis updated to: ${input.newChassisNumber}`, 'success'));
+
+  // --- NIID ---
+  const niidPage = await prepareWorkerNIIDPage(worker);
+  addStep(task, createStep('niid', 'NIID session ready', 'success'));
+
+  await searchNIIDPolicy(niidPage, input.policyNumber, currentRegNumber);
+  addStep(task, createStep('niid', `NIID search: policy ${input.policyNumber} + reg ${currentRegNumber}`, 'success'));
+
+  await correctNIIDChassis(niidPage, input.newChassisNumber);
+  addStep(task, createStep('niid', `NIID chassis updated to: ${input.newChassisNumber}`, 'success'));
 }
 
 // ============================================

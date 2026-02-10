@@ -73,16 +73,39 @@ export async function searchNIIDPolicy(
 ): Promise<void> {
   log(`Searching NIID for policy: ${policyNumber}, reg: ${oldRegNumber}`);
 
-  // Page should already be on Change_Request.aspx via getNIIDPolicyPage()
-  // Fill search fields
-  await page.fill(SELECTORS.search.policyNumberField, policyNumber);
-  await page.fill(SELECTORS.search.regNumberField, oldRegNumber);
-  await page.click(SELECTORS.search.searchButton);
+  let policyNotFound = false;
 
-  // Wait for form to load
-  await page.waitForSelector(SELECTORS.policy.regNumberField, { timeout: 15000 });
+  const dialogHandler = async (dialog: any) => {
+    log(`NIID Dialog message: ${dialog.message()}`);
+    if (dialog.message().toLowerCase().includes('policy does not exist')) {
+      policyNotFound = true;
+    }
+    await dialog.dismiss().catch(() => {});
+  };
 
-  log('NIID policy loaded');
+  page.on('dialog', dialogHandler);
+
+  try {
+    // Page should already be on Change_Request.aspx via getNIIDPolicyPage()
+    // Fill search fields
+    await page.fill(SELECTORS.search.policyNumberField, policyNumber);
+    await page.fill(SELECTORS.search.regNumberField, oldRegNumber);
+    await page.click(SELECTORS.search.searchButton);
+
+    // Wait briefly for a potential error dialog
+    await page.waitForTimeout(2000);
+
+    if (policyNotFound) {
+      throw new Error(`Policy ${policyNumber} does not exist on NIID`);
+    }
+
+    // Wait for form to load
+    await page.waitForSelector(SELECTORS.policy.regNumberField, { timeout: 15000 });
+
+    log('NIID policy loaded');
+  } finally {
+    page.off('dialog', dialogHandler);
+  }
 }
 
 // ============================================
@@ -145,6 +168,129 @@ export async function correctNIIDRegistration(
 
   } finally {
     // Clean up listener
+    page.off('dialog', dialogHandler);
+  }
+}
+
+// ============================================
+// Correct registration + chassis on NIID
+// ============================================
+
+export async function correctNIIDRegAndChassis(
+  page: Page,
+  newRegNumber: string,
+  newChassisNumber: string
+): Promise<void> {
+  log(`Correcting NIID registration to: ${newRegNumber} and chassis to: ${newChassisNumber}`);
+
+  let dialogHandled = false;
+
+  const dialogHandler = async (dialog: any) => {
+    log(`NIID Dialog message: ${dialog.message()}`);
+    if (dialog.message().toLowerCase().includes('successfully updated')) {
+      dialogHandled = true;
+    }
+    await dialog.dismiss().catch(() => {});
+  };
+
+  page.on('dialog', dialogHandler);
+
+  try {
+    // 1. Check and potentially update Email Field
+    const currentEmail = await page.inputValue(SELECTORS.policy.emailField);
+    log(`Current NIID Email: ${currentEmail}`);
+
+    if (currentEmail.includes('@') || currentEmail.toUpperCase() === 'TBA') {
+      log('Email update required. Setting to: info@aginsuranceplc.com');
+      await page.fill(SELECTORS.policy.emailField, '');
+      await page.fill(SELECTORS.policy.emailField, 'info@aginsuranceplc.com');
+    }
+
+    // 2. Update Registration Number
+    await page.fill(SELECTORS.policy.regNumberField, '');
+    await page.fill(SELECTORS.policy.regNumberField, newRegNumber);
+    await page.fill(SELECTORS.policy.oldLicenceNumberField, '');
+    await page.fill(SELECTORS.policy.oldLicenceNumberField, newRegNumber);
+
+    // 3. Update Chassis Number
+    await page.fill(SELECTORS.policy.chassisNumberField, '');
+    await page.fill(SELECTORS.policy.chassisNumberField, newChassisNumber);
+
+    await page.click(SELECTORS.policy.saveButton);
+
+    try {
+      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: 5000 });
+      log('Success message detected in DOM ✅');
+    } catch {
+      if (dialogHandled) {
+        log('Success confirmed via browser dialog ✅');
+      } else {
+        throw new Error('Neither success message nor success dialog was detected');
+      }
+    }
+
+    await saveSession('niid');
+    log('Registration and Chassis correction saved on NIID ✅');
+
+  } finally {
+    page.off('dialog', dialogHandler);
+  }
+}
+
+// ============================================
+// Correct chassis on NIID
+// ============================================
+
+export async function correctNIIDChassis(
+  page: Page,
+  newChassisNumber: string
+): Promise<void> {
+  log(`Correcting NIID chassis to: ${newChassisNumber}`);
+
+  let dialogHandled = false;
+
+  const dialogHandler = async (dialog: any) => {
+    log(`NIID Dialog message: ${dialog.message()}`);
+    if (dialog.message().toLowerCase().includes('successfully updated')) {
+      dialogHandled = true;
+    }
+    await dialog.dismiss().catch(() => {});
+  };
+
+  page.on('dialog', dialogHandler);
+
+  try {
+    // 1. Check and potentially update Email Field
+    const currentEmail = await page.inputValue(SELECTORS.policy.emailField);
+    log(`Current NIID Email: ${currentEmail}`);
+
+    if (currentEmail.includes('@') || currentEmail.toUpperCase() === 'TBA') {
+      log('Email update required. Setting to: info@aginsuranceplc.com');
+      await page.fill(SELECTORS.policy.emailField, '');
+      await page.fill(SELECTORS.policy.emailField, 'info@aginsuranceplc.com');
+    }
+
+    // 2. Update Chassis Number
+    await page.fill(SELECTORS.policy.chassisNumberField, '');
+    await page.fill(SELECTORS.policy.chassisNumberField, newChassisNumber);
+
+    await page.click(SELECTORS.policy.saveButton);
+
+    try {
+      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: 5000 });
+      log('Success message detected in DOM ✅');
+    } catch {
+      if (dialogHandled) {
+        log('Success confirmed via browser dialog ✅');
+      } else {
+        throw new Error('Neither success message nor success dialog was detected');
+      }
+    }
+
+    await saveSession('niid');
+    log('Chassis correction saved on NIID ✅');
+
+  } finally {
     page.off('dialog', dialogHandler);
   }
 }

@@ -4,7 +4,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx next build:*)",
       "Bash(dir:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx shadcn@latest add command popover --yes)"
     ]
   }
 }

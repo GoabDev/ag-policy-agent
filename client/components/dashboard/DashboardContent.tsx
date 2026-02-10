@@ -7,13 +7,15 @@ import { LiveActivity } from "./LiveActivity";
 import { HistoryTable } from "./HistoryTable";
 import { SessionControl } from "./SessionControl";
 import { useSSE } from "@/hooks/useSSE";
-import { checkBrowser } from "@/service/api";
+import { checkBrowser, getVehicleData } from "@/service/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 export default function DashboardContent() {
   const { logs, setLogs, tasks, activeTasks, isRunning, addLog } = useSSE();
 
   const [chromeMissing, setChromeStatus] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     checkBrowser()
@@ -23,7 +25,13 @@ export default function DashboardContent() {
         }
       })
       .catch(() => {});
-  }, []);
+
+    // Prefetch vehicle data on dashboard load so it's ready when user needs it
+    queryClient.prefetchQuery({
+      queryKey: ['vehicle-data'],
+      queryFn: getVehicleData,
+    });
+  }, [queryClient]);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
