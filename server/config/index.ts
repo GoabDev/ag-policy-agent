@@ -8,20 +8,22 @@ const isElectronProd = process.env.ELECTRON === "true" && !__dirname.includes("n
 // We need to go up to resources/ to find sibling directories.
 // In dev (ts-node), __dirname is server/config/ and project root is ../../
 function getResourceBase(): string {
+  if (process.env.PROJECT_ROOT) {
+    return process.env.PROJECT_ROOT;
+  }
   if (isElectronProd) {
-    // __dirname = .../resources/server/dist/config → go up 3 levels to resources/
     return path.resolve(__dirname, "../../..");
   }
-  // Dev: __dirname = server/config → go up 2 levels to project root
   return path.resolve(__dirname, "../..");
 }
 
 function getServerRoot(): string {
+  if (process.env.PROJECT_ROOT) {
+    return path.join(process.env.PROJECT_ROOT, "server");
+  }
   if (isElectronProd) {
-    // __dirname = .../resources/server/dist/config → go up 2 levels to server/
     return path.resolve(__dirname, "../..");
   }
-  // Dev: __dirname = server/config → go up 1 level to server/
   return path.resolve(__dirname, "..");
 }
 
@@ -42,18 +44,28 @@ export const config: Config = {
   // A&G Platform
   ag: {
     url: getEnv("AG_URL"),
+    spoolUrl: getEnv("AG_SPOOL_URL", "https://aginsuranceapplications.com/card/Utility/Spool_Unpushed.aspx"),
     username: getEnv("AG_USERNAME"),
     password: getEnv("AG_PASSWORD"),
     sessionPath: path.join(resourceBase, "storage/ag-session.json"),
   },
 
-  // NIID
+  // NIID (corrections)
   niid: {
     url: getEnv("NIID_URL"),
     policyCorrectionUrl: getEnv("NIID_POLICY_CORRECTION_URL"),
     username: getEnv("NIID_USERNAME"),
     password: getEnv("NIID_PASSWORD"),
     sessionPath: path.join(resourceBase, "storage/niid-session.json"),
+  },
+
+  // NIID (policy push — separate session with alt credentials)
+  niidPush: {
+    url: getEnv("NIID_URL"),
+    uploadUrl: getEnv("NIID_UPLOAD_URL", "https://niid.org/App_POL_Module/Upload_Policy.aspx"),
+    username: getEnv("NIID_ALT_USERNAME"),
+    password: getEnv("NIID_ALT_PASSWORD"),
+    sessionPath: path.join(resourceBase, "storage/niid-push-session.json"),
   },
 
   // Server

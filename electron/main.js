@@ -1,7 +1,8 @@
-const { app, BrowserWindow, utilityProcess } = require("electron");
+const { app, BrowserWindow, Menu, utilityProcess } = require("electron");
 const { spawn, execSync } = require("child_process");
 const crypto = require("crypto");
 const path = require("path");
+const fs = require("fs");
 
 let mainWindow;
 let serverProcess;
@@ -19,14 +20,40 @@ function getServerDir() {
   return path.join(process.resourcesPath, "server");
 }
 
+function loadEnvFile(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    const vars = {};
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIndex = trimmed.indexOf("=");
+      if (eqIndex === -1) continue;
+      const key = trimmed.slice(0, eqIndex).trim();
+      let val = trimmed.slice(eqIndex + 1).trim();
+      // Remove surrounding quotes
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      vars[key] = val;
+    }
+    return vars;
+  } catch {
+    return {};
+  }
+}
+
 function startServer() {
   return new Promise((resolve, reject) => {
     const serverDir = getServerDir();
+    const envFile = loadEnvFile(path.join(serverDir, ".env"));
     const env = {
       ...process.env,
+      ...envFile,
       PORT: "0",
       SESSION_TOKEN,
       ELECTRON: "true",
+      PROJECT_ROOT: isDev ? path.join(__dirname, "..") : process.resourcesPath,
     };
 
     if (isDev) {
@@ -100,6 +127,7 @@ function createWindow() {
     height: 900,
     title: "A&G Policy Agent",
     icon: path.join(__dirname, "icon.png"),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -107,6 +135,7 @@ function createWindow() {
     },
   });
 
+  Menu.setApplicationMenu(null);
   mainWindow.loadFile(path.join(__dirname, "splash.html"));
   return mainWindow;
 }

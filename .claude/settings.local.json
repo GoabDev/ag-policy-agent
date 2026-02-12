@@ -5,7 +5,11 @@
       "Bash(npx next build:*)",
       "Bash(dir:*)",
       "Bash(ls:*)",
-      "Bash(npx shadcn@latest add command popover --yes)"
+      "Bash(npx shadcn@latest add command popover --yes)",
+      "Bash(npm config set:*)",
+      "Bash(set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/)",
+      "Bash(npm install:*)",
+      "Bash(npm ls:*)"
     ]
   }
 }

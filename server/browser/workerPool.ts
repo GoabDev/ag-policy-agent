@@ -9,6 +9,7 @@ import { SiteName, Worker, WorkerPoolStatus } from '../types';
 const PARK_PAGES: Record<SiteName, string> = {
   ag: 'https://aginsuranceapplications.com/card/Policy/Policy_Update.aspx',
   niid: 'https://niid.org/App_ADM_Module/Change_Request.aspx',
+  niid_push: 'https://niid.org/App_POL_Module/Upload_Policy.aspx',
 };
 
 // Pool state

@@ -22,7 +22,7 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
   }
 
   loginInProgress = true;
-  const siteConfig = site === "ag" ? config.ag : config.niid;
+  const siteConfig = site === "ag" ? config.ag : site === "niid_push" ? config.niidPush : config.niid;
   const sessionPath = siteConfig.sessionPath;
 
   log(`Opening manual login popup for ${site.toUpperCase()}...`);
@@ -142,8 +142,8 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
 if (require.main === module) {
   const site = process.argv[2] as SiteName;
 
-  if (!site || !["ag", "niid"].includes(site)) {
-    console.log("Usage: npx ts-node src/browser/manualLogin.ts <ag|niid>");
+  if (!site || !["ag", "niid", "niid_push"].includes(site)) {
+    console.log("Usage: npx ts-node src/browser/manualLogin.ts <ag|niid|niid_push>");
     process.exit(1);
   }
 

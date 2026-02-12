@@ -83,6 +83,57 @@ export function useSSE() {
           });
           addLog('x-circle', `Task failed: ${ev.data?.error || ''}`, time);
 
+        } else if (ev.type === 'push:started' && taskId) {
+          setTasks((prev) => {
+            const next = new Map(prev);
+            next.set(taskId, {
+              id: taskId,
+              type: 'policy_push',
+              policyNumber: ev.data?.label || '',
+              steps: [],
+              status: 'running',
+            });
+            return next;
+          });
+          addLog('rocket', `Policy push started: ${ev.data?.label || ''}`, time);
+
+        } else if (ev.type === 'push:step' && taskId) {
+          const s = ev.data?.step;
+          if (s) {
+            setTasks((prev) => {
+              const next = new Map(prev);
+              const task = next.get(taskId);
+              if (task) {
+                next.set(taskId, { ...task, steps: [...task.steps, s] });
+              }
+              return next;
+            });
+            const icon = s.status === 'success' ? 'check-circle' : s.status === 'failed' ? 'x-circle' : 'skip-forward';
+            addLog(icon, `[${(s.site || '').toUpperCase()}] ${s.action}`, time);
+          }
+
+        } else if (ev.type === 'push:completed' && taskId) {
+          setTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, { ...task, status: 'completed' });
+            }
+            return next;
+          });
+          addLog('check-circle-2', 'Policy push completed', time);
+
+        } else if (ev.type === 'push:failed' && taskId) {
+          setTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, { ...task, status: 'failed', error: ev.data?.error });
+            }
+            return next;
+          });
+          addLog('x-circle', `Policy push failed: ${ev.data?.error || ''}`, time);
+
         } else if (ev.type === 'log') {
           const d = ev.data;
           const icon = d?.level === 'error' ? 'x-circle' : d?.level === 'warn' ? 'alert-triangle' : 'info';

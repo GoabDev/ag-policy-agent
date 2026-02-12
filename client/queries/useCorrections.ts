@@ -17,3 +17,20 @@ export function useRunCorrection() {
     },
   });
 }
+
+export function usePushPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.pushPolicy,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['push-logs'] });
+    },
+  });
+}
+
+export function usePushLogs() {
+  return useQuery({
+    queryKey: ['push-logs'],
+    queryFn: api.getPushLogs,
+  });
+}

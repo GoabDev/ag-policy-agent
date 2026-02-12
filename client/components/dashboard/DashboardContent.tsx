@@ -1,31 +1,23 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Header } from "./Header";
 import { CorrectionForm } from "./CorrectionForm";
+import { PolicyPushForm } from "./PolicyPushForm";
 import { LiveActivity } from "./LiveActivity";
 import { HistoryTable } from "./HistoryTable";
 import { SessionControl } from "./SessionControl";
 import { useSSE } from "@/hooks/useSSE";
-import { checkBrowser, getVehicleData } from "@/service/api";
+import { getVehicleData } from "@/service/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 export default function DashboardContent() {
   const { logs, setLogs, tasks, activeTasks, isRunning, addLog } = useSSE();
 
-  const [chromeMissing, setChromeStatus] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    checkBrowser()
-      .then((res) => {
-        if (!res.data?.data?.installed) {
-          setChromeStatus(true);
-        }
-      })
-      .catch(() => {});
-
     // Prefetch vehicle data on dashboard load so it's ready when user needs it
     queryClient.prefetchQuery({
       queryKey: ['vehicle-data'],
@@ -38,38 +30,37 @@ export default function DashboardContent() {
       <div className="max-w-[1200px] mx-auto p-6 md:p-8">
         <Header />
 
-        {chromeMissing && (
-          <Alert className="mb-6 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-200">
-            <AlertTitle className="text-amber-800 dark:text-amber-300 font-semibold">
-              Google Chrome not detected
-            </AlertTitle>
-            <AlertDescription className="text-amber-700/80 dark:text-amber-200/80">
-              This application requires Google Chrome to run automations. Please{" "}
-              <a
-                href="https://www.google.com/chrome/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-amber-800 dark:text-amber-300 hover:text-amber-600 dark:hover:text-amber-100"
-              >
-                download and install Chrome
-              </a>
-              , then restart the application.
-            </AlertDescription>
-          </Alert>
-        )}
+        <Alert className="mb-6 border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-200">
+          <AlertTitle className="text-blue-800 dark:text-blue-300 font-semibold">
+            Google Chrome Required
+          </AlertTitle>
+          <AlertDescription className="text-blue-700/80 dark:text-blue-200/80">
+            This application uses Google Chrome to run automations. Please ensure Chrome is installed on your system.{" "}
+            <a
+              href="https://www.google.com/chrome/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-blue-800 dark:text-blue-300 hover:text-blue-600 dark:hover:text-blue-100"
+            >
+              Download Chrome
+            </a>
+          </AlertDescription>
+        </Alert>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div className="space-y-8">
-            <CorrectionForm
-              isRunning={isRunning}
-              activeTasks={activeTasks}
-              tasks={tasks}
-            />
-          </div>
+          <CorrectionForm
+            isRunning={isRunning}
+            activeTasks={activeTasks}
+            tasks={tasks}
+          />
+          <PolicyPushForm
+            activeTasks={activeTasks}
+            tasks={tasks}
+          />
+        </div>
 
-          <div className="space-y-8">
-            <LiveActivity logs={logs} setLogs={setLogs} />
-          </div>
+        <div className="mb-8">
+          <LiveActivity logs={logs} setLogs={setLogs} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

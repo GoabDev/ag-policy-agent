@@ -18,12 +18,14 @@ let heartbeatTimers: Map<SiteName, NodeJS.Timeout> = new Map();
 const PARK_PAGES: Record<SiteName, string> = {
   ag: "https://aginsuranceapplications.com/card/Policy/Policy_Update.aspx",
   niid: "https://niid.org/App_ADM_Module/Change_Request.aspx",
+  niid_push: "https://niid.org/App_POL_Module/Upload_Policy.aspx",
 };
 
 // URLs that indicate expired sessions
 const SESSION_EXPIRED_INDICATORS: Record<SiteName, string> = {
   ag: "ErrorPage.aspx", // Redirects to ErrorPage.aspx?Error=Sorry%20Your%20Session%20has%20Expired
   niid: "/default.aspx", // Redirects back to login page
+  niid_push: "/default.aspx", // Same login redirect as niid
 };
 
 // ============================================
@@ -46,28 +48,29 @@ async function handleExpiredSession(site: SiteName, page: Page) {
     touchSession("ag");
     log(`AG session recovered — back on park page`);
     emitEvent("keepalive:ping", { site: "ag", status: "recovered" });
-  } else if (site === "niid") {
+  } else if (site === "niid" || site === "niid_push") {
+    const label = site === "niid_push" ? "NIID Push" : "NIID";
     log(
-      `Session expired for NIID — opening manual login popup (CAPTCHA)`,
+      `Session expired for ${label} — opening manual login popup (CAPTCHA)`,
       "warn",
     );
-    stopHeartbeat("niid");
+    stopHeartbeat(site);
     emitEvent("session:status", {
-      site: "niid",
+      site,
       isActive: false,
       reason: "session_expired",
     });
 
     // Clear stale session so the server picks up the fresh one after login
-    await clearSession("niid");
+    await clearSession(site);
 
     // Spawn a headed popup for the user to log in
-    const success = await openLoginPopup("niid");
+    const success = await openLoginPopup(site);
     if (success) {
-      log("NIID session restored via manual login, restarting heartbeat");
-      startHeartbeat("niid");
+      log(`${label} session restored via manual login, restarting heartbeat`);
+      startHeartbeat(site);
     } else {
-      log("NIID manual login failed or timed out", "error");
+      log(`${label} manual login failed or timed out`, "error");
     }
   }
 }
@@ -151,7 +154,7 @@ export function startHeartbeat(site: SiteName) {
   // Stop existing heartbeat if any
   stopHeartbeat(site);
 
-  const interval = site === "niid" ? config.niidKeepAliveInterval : config.keepAliveInterval;
+  const interval = (site === "niid" || site === "niid_push") ? config.niidKeepAliveInterval : config.keepAliveInterval;
 
   log(
     `Starting heartbeat for ${site.toUpperCase()} (every ${interval / 60000} min)`,
@@ -180,12 +183,15 @@ export function stopHeartbeat(site: SiteName) {
 export function startAllHeartbeats() {
   const agStatus = getSessionStatus("ag");
   const niidStatus = getSessionStatus("niid");
+  const niidPushStatus = getSessionStatus("niid_push");
 
   if (agStatus.isActive) startHeartbeat("ag");
   if (niidStatus.isActive) startHeartbeat("niid");
+  if (niidPushStatus.isActive) startHeartbeat("niid_push");
 }
 
 export function stopAllHeartbeats() {
   stopHeartbeat("ag");
   stopHeartbeat("niid");
+  stopHeartbeat("niid_push");
 }

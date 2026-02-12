@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import fs from "fs";
 import { config } from "./config";
 import { addSSEClient, log, loadTaskLogs } from "./utils/logger";
 import { getSessionStatus, closeBrowser } from "./browser/controller";
@@ -16,7 +15,12 @@ import {
   getTaskHistory,
 } from "./agents/correctionRunner";
 import { getPoolStatus, destroyAllWorkers } from "./browser/workerPool";
-import { CorrectionInput } from "./types";
+import { CorrectionInput, PolicyPushInput } from "./types";
+import {
+  runPolicyPush,
+  getRunningPushTasks,
+  getPushTaskHistory,
+} from "./agents/policyPushRunner";
 
 const app = express();
 app.use(cors());
@@ -43,6 +47,7 @@ app.get("/api/status", (req, res) => {
       sessions: {
         ag: getSessionStatus("ag"),
         niid: getSessionStatus("niid"),
+        niid_push: getSessionStatus("niid_push"),
       },
       uptime: Math.floor((Date.now() - startTime) / 1000),
     },
@@ -204,6 +209,90 @@ app.get("/api/vehicle-data", async (req, res) => {
 });
 
 // ============================================
+// Policy Push
+// ============================================
+
+// Submit a policy push task
+app.post("/api/policy-push/run", async (req, res) => {
+  try {
+    const input: PolicyPushInput = req.body;
+
+    if (!input.method) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required field: method (policy_number or date_range)",
+      });
+    }
+
+    if (input.method === "policy_number" && !input.policyNumber) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required field: policyNumber",
+      });
+    }
+
+    if (input.method === "date_range") {
+      if (!input.fromDate || !input.toDate) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing required fields: fromDate and toDate",
+        });
+      }
+    }
+
+    // Run in background
+    const taskPromise = runPolicyPush(input);
+
+    taskPromise
+      .then((task) => {
+        log(`Policy push task ${task.id} finished with status: ${task.status}`);
+      })
+      .catch((err) => {
+        log(`Policy push task failed unexpectedly: ${err.message}`, "error");
+      });
+
+    res.json({
+      success: true,
+      data: { message: "Policy push task queued" },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get policy push history
+app.get("/api/policy-push/logs", (req, res) => {
+  const running = getRunningPushTasks();
+  const history = getPushTaskHistory();
+
+  const seen = new Set(running.map((t) => t.id));
+  const merged = [...running, ...history.filter((t) => !seen.has(t.id))];
+
+  res.json({ success: true, data: merged });
+});
+
+// Open a headed browser popup for manual NIID Push login
+app.post("/api/sessions/login-niid-push", async (req, res) => {
+  try {
+    const { openLoginPopup } = await import("./browser/manualLogin");
+    res.json({
+      success: true,
+      data: {
+        message:
+          "NIID Push login popup opened — please complete login in the browser window.",
+      },
+    });
+
+    const success = await openLoginPopup("niid_push");
+    if (success) {
+      startHeartbeat("niid_push");
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================
 // SSE Endpoint for live updates
 // ============================================
 
@@ -227,33 +316,6 @@ app.get("/api/stream", (req, res) => {
 // ============================================
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
-
-// Check if Chrome is installed on the system
-app.get("/api/check-browser", (req, res) => {
-  const chromePaths: string[] =
-    process.platform === "win32"
-      ? [
-          path.join(process.env.PROGRAMFILES || "", "Google/Chrome/Application/chrome.exe"),
-          path.join(process.env["PROGRAMFILES(X86)"] || "", "Google/Chrome/Application/chrome.exe"),
-          path.join(process.env.LOCALAPPDATA || "", "Google/Chrome/Application/chrome.exe"),
-        ]
-      : [
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-          "/usr/bin/google-chrome",
-          "/usr/bin/google-chrome-stable",
-        ];
-
-  const found = chromePaths.some((p) => fs.existsSync(p));
-
-  res.json({
-    success: true,
-    data: {
-      installed: found,
-      browser: "Google Chrome",
-      platform: process.platform,
-    },
-  });
-});
 
 // ============================================
 // Fallback: serve frontend for non-API routes

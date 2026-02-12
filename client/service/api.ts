@@ -31,5 +31,11 @@ export const getVehicleData = () => api.get('/api/vehicle-data');
 export const refreshVehicleData = () => api.get('/api/vehicle-data?refresh=true');
 export const loginAG = () => api.post('/api/sessions/login-ag');
 export const loginNIID = () => api.post('/api/sessions/login-niid');
+export const loginNIIDPush = () => api.post('/api/sessions/login-niid-push');
 export const startKeepAlive = () => api.post('/api/sessions/keepalive');
-export const checkBrowser = () => api.get('/api/check-browser');
+
+// Policy Push
+export const pushPolicy = (data: { method: string; policyNumber?: string; fromDate?: string; toDate?: string }) => {
+  return api.post('/api/policy-push/run', data);
+};
+export const getPushLogs = () => api.get('/api/policy-push/logs');

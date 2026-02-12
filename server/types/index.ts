@@ -73,7 +73,7 @@ export interface Task {
 // Session
 // ============================================
 
-export type SiteName = 'ag' | 'niid';
+export type SiteName = 'ag' | 'niid' | 'niid_push';
 
 export interface SessionStatus {
   site: SiteName;
@@ -99,6 +99,7 @@ export interface AgentStatus {
   sessions: {
     ag: SessionStatus;
     niid: SessionStatus;
+    niid_push: SessionStatus;
   };
   uptime: number;
 }
@@ -131,6 +132,10 @@ export type SSEEventType =
   | 'task:step'
   | 'task:completed'
   | 'task:failed'
+  | 'push:started'
+  | 'push:step'
+  | 'push:completed'
+  | 'push:failed'
   | 'session:status'
   | 'session:login_required'
   | 'session:login_failed'
@@ -143,9 +148,48 @@ export interface SSEEvent {
   timestamp: string;
 }
 
+// ============================================
+// Policy Push Types
+// ============================================
+
+export interface PolicyPushByNumber {
+  method: 'policy_number';
+  policyNumber: string;
+}
+
+export interface PolicyPushByDateRange {
+  method: 'date_range';
+  fromDate: string; // Format: DD-MMM-YYYY e.g. "01-Feb-2026"
+  toDate: string;
+}
+
+export type PolicyPushInput = PolicyPushByNumber | PolicyPushByDateRange;
+
+export type PolicyPushStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface PolicyPushStep {
+  timestamp: string;
+  site: 'ag' | 'niid_push';
+  action: string;
+  status: 'success' | 'failed' | 'skipped';
+  details?: string;
+}
+
+export interface PolicyPushTask {
+  id: string;
+  input: PolicyPushInput;
+  status: PolicyPushStatus;
+  steps: PolicyPushStep[];
+  createdAt: string;
+  completedAt?: string;
+  error?: string;
+  downloadedFile?: string;
+}
+
 export interface Config {
   ag: {
     url: string;
+    spoolUrl: string;
     username: string;
     password: string;
     sessionPath: string;
@@ -153,6 +197,13 @@ export interface Config {
   niid: {
     url: string;
     policyCorrectionUrl: string;
+    username: string;
+    password: string;
+    sessionPath: string;
+  };
+  niidPush: {
+    url: string;
+    uploadUrl: string;
     username: string;
     password: string;
     sessionPath: string;

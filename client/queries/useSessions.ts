@@ -29,6 +29,16 @@ export function useLoginNIID() {
   });
 }
 
+export function useLoginNIIDPush() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.loginNIIDPush,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
+}
+
 export function useKeepAlive() {
   return useMutation({
     mutationFn: api.startKeepAlive,

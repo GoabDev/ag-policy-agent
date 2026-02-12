@@ -54,7 +54,9 @@ export async function closeBrowser() {
 // ============================================
 
 function getSessionPath(site: SiteName): string {
-  return site === 'ag' ? config.ag.sessionPath : config.niid.sessionPath;
+  if (site === 'ag') return config.ag.sessionPath;
+  if (site === 'niid_push') return config.niidPush.sessionPath;
+  return config.niid.sessionPath;
 }
 
 function hasStoredSession(site: SiteName): boolean {
