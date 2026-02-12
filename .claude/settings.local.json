@@ -9,7 +9,9 @@
       "Bash(npm config set:*)",
       "Bash(set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/)",
       "Bash(npm install:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "Bash(npx shadcn@latest add:*)"
     ]
   }
 }

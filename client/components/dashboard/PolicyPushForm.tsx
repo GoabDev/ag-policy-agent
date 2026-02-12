@@ -1,14 +1,28 @@
-import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { DatePicker } from '@/components/ui/date-picker';
-import { Upload, RefreshCw, CheckCircle2, XCircle, Clock, Layers } from 'lucide-react';
-import { usePushPolicy } from '@/queries/useCorrections';
-import type { TaskState } from '@/hooks/useSSE';
+import React from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Upload,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Layers,
+  Construction,
+} from "lucide-react";
+import { usePushPolicy } from "@/queries/useCorrections";
+import {
+  policyPushSchema,
+  type PolicyPushFormValues,
+} from "@/schema/policyPush";
+import type { TaskState } from "@/hooks/useSSE";
 
 /** Format a Date to the backend-expected format: DD-MMM-YYYY (e.g. "01-Feb-2026") */
 function formatDateForBackend(date: Date): string {
@@ -23,26 +37,37 @@ export function PolicyPushForm({
   tasks: Map<string, TaskState>;
 }) {
   const pushMutation = usePushPolicy();
-  const [method, setMethod] = useState<'policy_number' | 'date_range'>('policy_number');
-  const [policyNumber, setPolicyNumber] = useState('');
-  const [fromDate, setFromDate] = useState<Date | undefined>();
-  const [toDate, setToDate] = useState<Date | undefined>();
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<PolicyPushFormValues>({
+    resolver: zodResolver(policyPushSchema),
+    defaultValues: {
+      method: "policy_number",
+      policyNumber: "",
+    },
+  });
+
+  const method = watch("method");
 
   // Filter to only push tasks
-  const pushActiveTasks = activeTasks.filter(t => t.type === 'policy_push');
+  const pushActiveTasks = activeTasks.filter((t) => t.type === "policy_push");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (method === 'policy_number') {
-      if (!policyNumber.trim()) return;
-      pushMutation.mutate({ method: 'policy_number', policyNumber: policyNumber.trim() });
-    } else {
-      if (!fromDate || !toDate) return;
+  const onSubmit = (data: PolicyPushFormValues) => {
+    if (data.method === "policy_number") {
       pushMutation.mutate({
-        method: 'date_range',
-        fromDate: formatDateForBackend(fromDate),
-        toDate: formatDateForBackend(toDate),
+        method: "policy_number",
+        policyNumber: data.policyNumber,
+      });
+    } else {
+      pushMutation.mutate({
+        method: "date_range",
+        fromDate: formatDateForBackend(data.fromDate),
+        toDate: formatDateForBackend(data.toDate),
       });
     }
   };
@@ -61,15 +86,46 @@ export function PolicyPushForm({
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-6">
+      <CardContent className="p-6 relative">
+        {/* Development Overlay */}
+        <div className="absolute inset-0 z-10 bg-background/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 rounded-b-xl">
+          <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/20">
+            <Construction className="w-7 h-7 text-primary" />
+          </div>
+          <div className="text-center space-y-1.5 px-8">
+            <h3 className="text-sm font-semibold text-foreground">
+              Currently in Development
+            </h3>
+            <p className="text-[11px] text-muted-foreground leading-relaxed max-w-[260px]">
+              This feature is being finalized and will be available in an
+              upcoming release.
+            </p>
+          </div>
+          <Badge className="bg-primary/10 text-primary text-[10px] font-medium mt-1">
+            Coming Soon
+          </Badge>
+        </div>
+
         <Tabs
           value={method}
-          onValueChange={(v) => setMethod(v as 'policy_number' | 'date_range')}
+          onValueChange={(v) =>
+            setValue("method", v as "policy_number" | "date_range")
+          }
           className="mb-6"
         >
           <TabsList className="grid grid-cols-2 bg-background p-1 h-10 border border-border">
-            <TabsTrigger value="policy_number" className="text-xs data-[state=active]:bg-secondary">By Policy Number</TabsTrigger>
-            <TabsTrigger value="date_range" className="text-xs data-[state=active]:bg-secondary">By Date Range</TabsTrigger>
+            <TabsTrigger
+              value="policy_number"
+              className="text-xs data-[state=active]:bg-secondary"
+            >
+              By Policy Number
+            </TabsTrigger>
+            <TabsTrigger
+              value="date_range"
+              className="text-xs data-[state=active]:bg-secondary"
+            >
+              By Date Range
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -78,41 +134,69 @@ export function PolicyPushForm({
           Downloads from A&G spool, renames sheet to Sheet1, and uploads to NIID
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {method === 'policy_number' && (
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {method === "policy_number" && (
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Policy Number</label>
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Policy Number
+              </label>
               <Input
-                value={policyNumber}
-                onChange={(e) => setPolicyNumber(e.target.value)}
+                {...register("policyNumber")}
                 placeholder="e.g. P/AG/PMI/23/ESA/2522010"
                 className="bg-background border-border focus-visible:ring-primary/50"
               />
+              {(errors as any).policyNumber && (
+                <p className="text-[10px] text-destructive">
+                  {(errors as any).policyNumber.message}
+                </p>
+              )}
             </div>
           )}
 
-          {method === 'date_range' && (
+          {method === "date_range" && (
             <>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">From Date</label>
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  From Date
+                </label>
                 <DatePicker
-                  date={fromDate}
-                  onDateChange={setFromDate}
+                  date={watch("fromDate" as any)}
+                  onDateChange={(d: Date | undefined) => {
+                    if (d) setValue("fromDate" as any, d);
+                  }}
                   placeholder="Select start date"
                 />
-                {fromDate && (
-                  <p className="text-[10px] text-muted-foreground">{formatDateForBackend(fromDate)}</p>
+                {watch("fromDate" as any) && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatDateForBackend(watch("fromDate" as any))}
+                  </p>
+                )}
+                {(errors as any).fromDate && (
+                  <p className="text-[10px] text-destructive">
+                    {(errors as any).fromDate.message}
+                  </p>
                 )}
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">To Date</label>
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  To Date
+                </label>
                 <DatePicker
-                  date={toDate}
-                  onDateChange={setToDate}
+                  date={watch("toDate" as any)}
+                  onDateChange={(d: Date | undefined) => {
+                    if (d) setValue("toDate" as any, d);
+                  }}
                   placeholder="Select end date"
                 />
-                {toDate && (
-                  <p className="text-[10px] text-muted-foreground">{formatDateForBackend(toDate)}</p>
+                {watch("toDate" as any) && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatDateForBackend(watch("toDate" as any))}
+                  </p>
+                )}
+                {(errors as any).toDate && (
+                  <p className="text-[10px] text-destructive">
+                    {(errors as any).toDate.message}
+                  </p>
                 )}
               </div>
             </>
@@ -124,9 +208,14 @@ export function PolicyPushForm({
             disabled={pushMutation.isPending}
           >
             {pushMutation.isPending ? (
-              <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />{" "}
+                Submitting...
+              </>
             ) : (
-              <><Upload className="w-4 h-4 mr-2" /> Push Policy</>
+              <>
+                <Upload className="w-4 h-4 mr-2" /> Push Policy
+              </>
             )}
           </Button>
         </form>
@@ -138,27 +227,47 @@ export function PolicyPushForm({
               Active Push Tasks ({pushActiveTasks.length})
             </h4>
             {pushActiveTasks.map((task) => (
-              <div key={task.id} className="rounded-lg border border-border p-3 space-y-2">
+              <div
+                key={task.id}
+                className="rounded-lg border border-border p-3 space-y-2"
+              >
                 <div className="flex items-center gap-2 text-xs">
                   <RefreshCw className="w-3 h-3 animate-spin text-primary" />
-                  <span className="text-foreground font-medium">Policy Push</span>
-                  <span className="text-muted-foreground">— {task.policyNumber}</span>
+                  <span className="text-foreground font-medium">
+                    Policy Push
+                  </span>
+                  <span className="text-muted-foreground">
+                    — {task.policyNumber}
+                  </span>
                   <Badge className="ml-auto bg-primary/10 text-primary text-[9px]">
                     {task.steps.length} steps
                   </Badge>
                 </div>
                 <div className="space-y-1">
                   {task.steps.map((s, i) => (
-                    <div key={i} className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] ${
-                      s.status === 'success' ? 'bg-emerald-500/5 text-emerald-600 dark:text-emerald-300' :
-                      s.status === 'failed' ? 'bg-destructive/5 text-destructive' :
-                      'bg-primary/5 text-primary'
-                    }`}>
-                      <Badge className={`h-3.5 text-[8px] px-1 ${s.site === 'ag' ? 'bg-primary/20 text-primary' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'}`}>
-                        {(s.site || '').toUpperCase().replace('_', ' ')}
+                    <div
+                      key={i}
+                      className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] ${
+                        s.status === "success"
+                          ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-300"
+                          : s.status === "failed"
+                            ? "bg-destructive/5 text-destructive"
+                            : "bg-primary/5 text-primary"
+                      }`}
+                    >
+                      <Badge
+                        className={`h-3.5 text-[8px] px-1 ${s.site === "ag" ? "bg-primary/20 text-primary" : "bg-amber-500/20 text-amber-600 dark:text-amber-400"}`}
+                      >
+                        {(s.site || "").toUpperCase().replace("_", " ")}
                       </Badge>
                       <span className="opacity-80">
-                        {s.status === 'success' ? <CheckCircle2 className="w-3 h-3" /> : s.status === 'failed' ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                        {s.status === "success" ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : s.status === "failed" ? (
+                          <XCircle className="w-3 h-3" />
+                        ) : (
+                          <Clock className="w-3 h-3" />
+                        )}
                       </span>
                       <span className="flex-1">{s.action}</span>
                     </div>
@@ -170,19 +279,36 @@ export function PolicyPushForm({
         )}
 
         {/* Recently completed/failed push tasks */}
-        {Array.from(tasks.values()).filter(t => t.type === 'policy_push' && t.status !== 'running').length > 0 && (
+        {Array.from(tasks.values()).filter(
+          (t) => t.type === "policy_push" && t.status !== "running",
+        ).length > 0 && (
           <div className="mt-4 space-y-2">
-            {Array.from(tasks.values()).filter(t => t.type === 'policy_push' && t.status !== 'running').map((task) => (
-              <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
-                task.status === 'completed' ? 'bg-emerald-500/5 text-emerald-600 dark:text-emerald-300' : 'bg-destructive/5 text-destructive'
-              }`}>
-                <span>{task.status === 'completed' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}</span>
-                <span>Policy Push — {task.policyNumber}</span>
-                <span className="ml-auto text-[10px] opacity-60">
-                  {task.status === 'completed' ? 'Done' : task.error || 'Failed'}
-                </span>
-              </div>
-            ))}
+            {Array.from(tasks.values())
+              .filter((t) => t.type === "policy_push" && t.status !== "running")
+              .map((task) => (
+                <div
+                  key={task.id}
+                  className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
+                    task.status === "completed"
+                      ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-300"
+                      : "bg-destructive/5 text-destructive"
+                  }`}
+                >
+                  <span>
+                    {task.status === "completed" ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : (
+                      <XCircle className="w-4 h-4" />
+                    )}
+                  </span>
+                  <span>Policy Push — {task.policyNumber}</span>
+                  <span className="ml-auto text-[10px] opacity-60">
+                    {task.status === "completed"
+                      ? "Done"
+                      : task.error || "Failed"}
+                  </span>
+                </div>
+              ))}
           </div>
         )}
       </CardContent>

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useStatus, useLoginAG, useLoginNIID, useLoginNIIDPush, useKeepAlive } from '@/queries/useSessions';
 import { Lock, RefreshCw, Heart } from 'lucide-react';
 
-export function SessionControl({ addLog }: { addLog: (icon: string, msg: string) => void }) {
+export function SessionControl() {
   const { data: status } = useStatus();
   const loginMutation = useLoginAG();
   const niidLoginMutation = useLoginNIID();
@@ -12,30 +12,6 @@ export function SessionControl({ addLog }: { addLog: (icon: string, msg: string)
   const keepAliveMutation = useKeepAlive();
 
   const sessions = status?.data?.sessions || { ag: { isActive: false }, niid: { isActive: false }, niid_push: { isActive: false } };
-
-  const handleLoginAG = () => {
-    loginMutation.mutate(undefined, {
-      onSuccess: () => addLog('lock-keyhole', 'A&G login initiated'),
-    });
-  };
-
-  const handleLoginNIID = () => {
-    niidLoginMutation.mutate(undefined, {
-      onSuccess: () => addLog('lock-keyhole', 'NIID login popup opened — complete login in the browser window'),
-    });
-  };
-
-  const handleLoginNIIDPush = () => {
-    niidPushLoginMutation.mutate(undefined, {
-      onSuccess: () => addLog('lock-keyhole', 'NIID Push login popup opened — complete login in the browser window'),
-    });
-  };
-
-  const handleKeepAlive = () => {
-    keepAliveMutation.mutate(undefined, {
-      onSuccess: () => addLog('heart-pulse', 'Heartbeats started'),
-    });
-  };
 
   return (
     <Card className="bg-card border-border shadow-xl lg:col-span-2">
@@ -61,7 +37,7 @@ export function SessionControl({ addLog }: { addLog: (icon: string, msg: string)
             variant="outline"
             size="sm"
             className="w-full text-xs"
-            onClick={handleLoginAG}
+            onClick={() => loginMutation.mutate()}
             disabled={loginMutation.isPending}
           >
             {loginMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin mr-2" /> : <Lock className="w-3 h-3 mr-2" />}
@@ -85,7 +61,7 @@ export function SessionControl({ addLog }: { addLog: (icon: string, msg: string)
             variant="outline"
             size="sm"
             className="w-full text-xs"
-            onClick={handleLoginNIID}
+            onClick={() => niidLoginMutation.mutate()}
             disabled={niidLoginMutation.isPending}
           >
             {niidLoginMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin mr-2" /> : <Lock className="w-3 h-3 mr-2" />}
@@ -109,7 +85,7 @@ export function SessionControl({ addLog }: { addLog: (icon: string, msg: string)
             variant="outline"
             size="sm"
             className="w-full text-xs"
-            onClick={handleLoginNIIDPush}
+            onClick={() => niidPushLoginMutation.mutate()}
             disabled={niidPushLoginMutation.isPending}
           >
             {niidPushLoginMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin mr-2" /> : <Lock className="w-3 h-3 mr-2" />}
@@ -128,7 +104,7 @@ export function SessionControl({ addLog }: { addLog: (icon: string, msg: string)
             variant="outline"
             size="sm"
             className="w-full text-xs"
-            onClick={handleKeepAlive}
+            onClick={() => keepAliveMutation.mutate()}
             disabled={keepAliveMutation.isPending}
           >
             {keepAliveMutation.isPending ? <RefreshCw className="w-3 h-3 animate-spin mr-2" /> : <Heart className="w-3 h-3 mr-2" />}

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { toast } from 'sonner';
 
 export interface TaskState {
   id: string;
@@ -67,6 +68,9 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'completed' });
+              toast.success(`Correction completed`, {
+                description: `${task.type} — ${task.policyNumber}`,
+              });
             }
             return next;
           });
@@ -78,6 +82,9 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'failed', error: ev.data?.error });
+              toast.error(`Correction failed`, {
+                description: ev.data?.error || `${task.type} — ${task.policyNumber}`,
+              });
             }
             return next;
           });
@@ -118,6 +125,9 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'completed' });
+              toast.success(`Policy push completed`, {
+                description: task.policyNumber,
+              });
             }
             return next;
           });
@@ -129,10 +139,23 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'failed', error: ev.data?.error });
+              toast.error(`Policy push failed`, {
+                description: ev.data?.error || task.policyNumber,
+              });
             }
             return next;
           });
           addLog('x-circle', `Policy push failed: ${ev.data?.error || ''}`, time);
+
+        } else if (ev.type === 'session:login_required') {
+          toast.warning('Login required', {
+            description: ev.data?.message || 'A session has expired. Please log in again.',
+          });
+
+        } else if (ev.type === 'session:login_failed') {
+          toast.error('Login failed', {
+            description: ev.data?.message || 'Session login failed. Please try again.',
+          });
 
         } else if (ev.type === 'log') {
           const d = ev.data;

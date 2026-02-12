@@ -1,5 +1,6 @@
-const { app, BrowserWindow, Menu, utilityProcess } = require("electron");
+const { app, BrowserWindow, Menu, utilityProcess, dialog } = require("electron");
 const { spawn, execSync } = require("child_process");
+const { autoUpdater } = require("electron-updater");
 const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
@@ -157,6 +158,41 @@ function killServer() {
   serverProcess = null;
 }
 
+// ── Auto-updater setup ──────────────────────────────────────────────
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on("update-available", (info) => {
+  console.log(`[updater] Update available: v${info.version}`);
+  dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Update Available",
+    message: `A new version (v${info.version}) is available. It will be downloaded in the background.`,
+  });
+});
+
+autoUpdater.on("update-downloaded", (info) => {
+  console.log(`[updater] Update downloaded: v${info.version}`);
+  dialog
+    .showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update Ready",
+      message: `Version ${info.version} has been downloaded. Restart now to install the update?`,
+      buttons: ["Restart Now", "Later"],
+      defaultId: 0,
+    })
+    .then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+});
+
+autoUpdater.on("error", (err) => {
+  console.error("[updater] Error:", err.message);
+});
+
+// ── App ready ───────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   const win = createWindow();
 
@@ -164,6 +200,11 @@ app.whenReady().then(async () => {
     const port = await startServer();
     await waitForServer(port);
     win.loadURL(`http://localhost:${port}`);
+
+    // Check for updates after the app has loaded (production only)
+    if (app.isPackaged) {
+      autoUpdater.checkForUpdatesAndNotify();
+    }
   } catch (err) {
     console.error("Failed to start:", err);
 

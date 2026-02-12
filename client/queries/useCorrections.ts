@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import * as api from '@/service/api';
 
 export function useLogs() {
@@ -14,6 +15,12 @@ export function useRunCorrection() {
     mutationFn: api.runCorrection,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['logs'] });
+      toast.success('Correction task queued');
+    },
+    onError: (error: Error) => {
+      toast.error('Correction failed', {
+        description: error.message || 'Something went wrong',
+      });
     },
   });
 }
@@ -24,6 +31,12 @@ export function usePushPolicy() {
     mutationFn: api.pushPolicy,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['push-logs'] });
+      toast.success('Policy push task queued');
+    },
+    onError: (error: Error) => {
+      toast.error('Policy push failed', {
+        description: error.message || 'Something went wrong',
+      });
     },
   });
 }

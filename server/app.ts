@@ -91,13 +91,14 @@ app.post("/api/corrections/run", async (req, res) => {
         }
         break;
       case "reg_and_chassis":
-        if (!(input as any).newRegistrationNumber || !(input as any).newChassisNumber) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              error: "Missing newRegistrationNumber or newChassisNumber",
-            });
+        if (
+          !(input as any).newRegistrationNumber ||
+          !(input as any).newChassisNumber
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: "Missing newRegistrationNumber or newChassisNumber",
+          });
         }
         break;
       case "chassis":
@@ -108,12 +109,10 @@ app.post("/api/corrections/run", async (req, res) => {
         }
         break;
       default:
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error: `Unknown type: ${(input as any).type}`,
-          });
+        return res.status(400).json({
+          success: false,
+          error: `Unknown type: ${(input as any).type}`,
+        });
     }
 
     // Generate task ID upfront, start correction in background, respond immediately
@@ -199,7 +198,8 @@ app.post("/api/sessions/keepalive", async (req, res) => {
 // Vehicle makes & models data
 app.get("/api/vehicle-data", async (req, res) => {
   try {
-    const { fetchVehicleData, getModelFetchStatus } = await import("./browser/actions/ag");
+    const { fetchVehicleData, getModelFetchStatus } =
+      await import("./browser/actions/ag");
     const forceRefresh = req.query.refresh === "true";
     const data = await fetchVehicleData(forceRefresh);
     res.json({ success: true, data, modelFetchStatus: getModelFetchStatus() });

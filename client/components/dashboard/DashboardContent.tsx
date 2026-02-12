@@ -65,7 +65,7 @@ export default function DashboardContent() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <HistoryTable />
-          <SessionControl addLog={addLog} />
+          <SessionControl />
         </div>
 
         <footer className="mt-16 text-center text-muted-foreground text-[10px] tracking-widest uppercase font-bold">

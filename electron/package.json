@@ -1,7 +1,7 @@
 {
   "name": "ag-policy-agent",
-  "version": "1.0.0",
-  "description": "A&G Policy Correction Agent - Desktop App",
+  "version": "1.0.1",
+  "description": "A&G Policy Agent - Desktop App",
   "main": "main.js",
   "author": "Ajogu Joseph",
   "scripts": {
@@ -13,7 +13,9 @@
     "dist:win": "npm run build:all && electron-builder --win",
     "dist:mac": "npm run build:all && electron-builder --mac"
   },
-  "dependencies": {},
+  "dependencies": {
+    "electron-updater": "^6.7.3"
+  },
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8"
@@ -33,7 +35,10 @@
       {
         "from": "../server/dist",
         "to": "server/dist",
-        "filter": ["**/*.js", "**/*.json"]
+        "filter": [
+          "**/*.js",
+          "**/*.json"
+        ]
       },
       {
         "from": "../server/node_modules",
@@ -54,7 +59,10 @@
       {
         "from": "../storage",
         "to": "storage",
-        "filter": ["**/*", "!logs/**"]
+        "filter": [
+          "**/*",
+          "!logs/**"
+        ]
       }
     ],
     "win": {
@@ -68,6 +76,13 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "GoabDev",
+        "repo": "ag-policy-agent-app"
+      }
+    ]
   }
 }
