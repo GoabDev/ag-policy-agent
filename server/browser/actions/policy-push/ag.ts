@@ -59,20 +59,19 @@ export async function navigateToSpoolPage(page: Page): Promise<void> {
 // ============================================
 
 export async function getAGSpoolPage(): Promise<Page> {
-  const page = await getPage("ag");
+  const page = await getPage("ag_push");
   const currentUrl = page.url();
 
   // Detect expired session
   if (currentUrl.includes("ErrorPage.aspx")) {
     log("A&G session expired (on error page), re-logging in...", "warn");
-    const loggedInPage = await loginToAG();
-    await navigateToSpoolPage(loggedInPage);
-    return loggedInPage;
+    await loginToAG(); // loginToAG now sets up both ag and ag_push pages
+    return await getPage("ag_push");
   }
 
   if (currentUrl.includes("Spool_Unpushed.aspx")) {
     log("A&G already on Spool Unpushed page — skipping navigation");
-    touchSession("ag");
+    touchSession("ag_push");
     return page;
   }
 
@@ -83,9 +82,8 @@ export async function getAGSpoolPage(): Promise<Page> {
   } catch {
     // Fallback: full login + navigate
     log("A&G navigation failed, falling back to login + navigate...");
-    const loggedInPage = await loginToAG();
-    await navigateToSpoolPage(loggedInPage);
-    return loggedInPage;
+    await loginToAG();
+    return await getPage("ag_push");
   }
 }
 
@@ -95,14 +93,14 @@ export async function getAGSpoolPage(): Promise<Page> {
 
 export async function downloadByPolicyNumber(
   page: Page,
-  policyNumber: string
+  policyNumber: string,
 ): Promise<string> {
   log(`Downloading policy by number: ${policyNumber}`);
 
   // Select "Fetch by Policy No" option
   await page.selectOption(
     SPOOL_SELECTORS.searchOptionDropdown,
-    "Fetch by Policy No"
+    "Fetch by Policy No",
   );
 
   // Fill policy number
@@ -119,14 +117,14 @@ export async function downloadByPolicyNumber(
 export async function downloadByDateRange(
   page: Page,
   fromDate: string,
-  toDate: string
+  toDate: string,
 ): Promise<string> {
   log(`Downloading policies by date range: ${fromDate} to ${toDate}`);
 
   // Select date range option
   await page.selectOption(
     SPOOL_SELECTORS.searchOptionDropdown,
-    "Fetch by Date Range"
+    "Fetch by Date Range",
   );
 
   // Fill date fields (format: DD-MMM-YYYY e.g. "01-Feb-2026")
@@ -163,7 +161,9 @@ async function triggerSearchAndDownload(page: Page): Promise<string> {
     .catch(() => null);
 
   if (errorDialog) {
-    const errorText = await errorDialog.textContent().catch(() => "Unknown error");
+    const errorText = await errorDialog
+      .textContent()
+      .catch(() => "Unknown error");
     await page.click(SPOOL_SELECTORS.closeButton).catch(() => {});
     throw new Error(`A&G error: ${errorText?.trim()}`);
   }
@@ -201,7 +201,7 @@ async function saveDownload(download: Download): Promise<string> {
 
 async function waitForOverlayToDisappear(
   page: Page,
-  context: string
+  context: string,
 ): Promise<void> {
   const start = Date.now();
 
@@ -217,16 +217,16 @@ async function waitForOverlayToDisappear(
         return (el as any).__overlayAppeared && style === "none";
       },
       SPOOL_SELECTORS.loadingOverlay,
-      { timeout: 30000, polling: 100 }
+      { timeout: 30000, polling: 100 },
     );
   } catch {
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
     log(
       `Loading overlay did not disappear after ${elapsed}s during: ${context}`,
-      "error"
+      "error",
     );
     throw new Error(
-      `Loading overlay timed out after ${elapsed}s during: ${context}`
+      `Loading overlay timed out after ${elapsed}s during: ${context}`,
     );
   }
 }

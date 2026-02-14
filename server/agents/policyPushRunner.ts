@@ -18,10 +18,23 @@ import {
 } from "../browser/actions/policy-push/niid";
 import { renameSheetToSheet1 } from "../utils/xlsxProcessor";
 import { config } from "../config";
+import { touchWorkActivity } from "../browser/controller";
 
 // Running push tasks
 const runningPushTasks: Map<string, PolicyPushTask> = new Map();
+const abortControllers: Map<string, AbortController> = new Map();
 const pushTaskHistory: PolicyPushTask[] = [];
+
+class CancellationError extends Error {
+  constructor() {
+    super('Task cancelled by user');
+    this.name = 'CancellationError';
+  }
+}
+
+function checkCancelled(signal: AbortSignal) {
+  if (signal.aborted) throw new CancellationError();
+}
 
 // ============================================
 // Helpers
@@ -33,7 +46,7 @@ function addStep(task: PolicyPushTask, step: PolicyPushStep) {
 }
 
 function createStep(
-  site: "ag" | "niid_push",
+  site: "ag" | "ag_push" | "niid_push",
   action: string,
   status: "success" | "failed" | "skipped",
   details?: string
@@ -62,23 +75,36 @@ export async function runPolicyPush(
     createdAt: new Date().toISOString(),
   };
 
+  const controller = new AbortController();
+  const signal = controller.signal;
+
   const label =
     input.method === "policy_number"
       ? `policy: ${input.policyNumber}`
       : `date range: ${input.fromDate} to ${input.toDate}`;
 
   runningPushTasks.set(task.id, task);
+  abortControllers.set(task.id, controller);
   emitEvent("push:started", { taskId: task.id, method: input.method, label });
   log(`Starting policy push task: ${task.id} (${label})`);
 
+  // Reset inactivity timer — real work is happening
+  touchWorkActivity("ag_push");
+  touchWorkActivity("niid_push");
+
+  // Track files for cleanup on cancellation
+  let downloadedFilePath: string | undefined;
+  let processedFilePath: string | undefined;
+
   try {
+    checkCancelled(signal);
+
     // Step 1: Get A&G spool page
     const agPage = await getAGSpoolPage();
-    addStep(task, createStep("ag", "A&G spool page ready", "success"));
+    addStep(task, createStep("ag_push", "A&G spool page ready", "success"));
+    checkCancelled(signal);
 
     // Step 2: Download XLSX from A&G
-    let downloadedFilePath: string;
-
     if (input.method === "policy_number") {
       downloadedFilePath = await downloadByPolicyNumber(
         agPage,
@@ -96,12 +122,13 @@ export async function runPolicyPush(
     addStep(
       task,
       createStep(
-        "ag",
+        "ag_push",
         "Policy file downloaded",
         "success",
         path.basename(downloadedFilePath)
       )
     );
+    checkCancelled(signal);
 
     // Step 3: Process XLSX — rename sheet to "Sheet1"
     const processedDir = path.join(config.storagePath, "downloads", "processed");
@@ -109,7 +136,7 @@ export async function runPolicyPush(
       fs.mkdirSync(processedDir, { recursive: true });
     }
 
-    const processedFilePath = path.join(
+    processedFilePath = path.join(
       processedDir,
       `processed_${path.basename(downloadedFilePath)}`
     );
@@ -117,16 +144,18 @@ export async function runPolicyPush(
     addStep(
       task,
       createStep(
-        "ag",
+        "ag_push",
         "XLSX sheet renamed to Sheet1",
         "success",
         path.basename(processedFilePath)
       )
     );
+    checkCancelled(signal);
 
     // Step 4: Get NIID upload page
     const niidPage = await getNIIDUploadPage();
     addStep(task, createStep("niid_push", "NIID upload page ready", "success"));
+    checkCancelled(signal);
 
     // Step 5: Upload processed file to NIID
     await uploadPolicyFile(niidPage, processedFilePath);
@@ -148,16 +177,31 @@ export async function runPolicyPush(
     emitEvent("push:completed", { taskId: task.id });
     log(`Policy push task completed: ${task.id}`);
   } catch (err: any) {
-    task.status = "failed";
-    task.error = err.message;
-    task.completedAt = new Date().toISOString();
-    addStep(task, createStep("ag", "error", "failed", err.message));
-    emitEvent("push:failed", { taskId: task.id, error: err.message });
-    log(`Policy push task failed: ${task.id} — ${err.message}`, "error");
+    // Clean up downloaded/processed files on cancellation or failure
+    try {
+      if (downloadedFilePath && fs.existsSync(downloadedFilePath)) fs.unlinkSync(downloadedFilePath);
+      if (processedFilePath && fs.existsSync(processedFilePath)) fs.unlinkSync(processedFilePath);
+    } catch { /* non-critical */ }
+
+    if (err instanceof CancellationError) {
+      task.status = "cancelled";
+      task.completedAt = new Date().toISOString();
+      addStep(task, createStep("ag_push", "Task cancelled by user", "failed"));
+      emitEvent("push:cancelled", { taskId: task.id });
+      log(`Policy push task cancelled: ${task.id}`);
+    } else {
+      task.status = "failed";
+      task.error = err.message;
+      task.completedAt = new Date().toISOString();
+      addStep(task, createStep("ag_push", "error", "failed", err.message));
+      emitEvent("push:failed", { taskId: task.id, error: err.message });
+      log(`Policy push task failed: ${task.id} — ${err.message}`, "error");
+    }
   }
 
   // Save to history
   runningPushTasks.delete(task.id);
+  abortControllers.delete(task.id);
   pushTaskHistory.unshift(task);
   saveTaskLog(task.id, task);
 
@@ -167,6 +211,13 @@ export async function runPolicyPush(
 // ============================================
 // Getters
 // ============================================
+
+export function cancelPolicyPush(taskId: string): boolean {
+  const controller = abortControllers.get(taskId);
+  if (!controller) return false;
+  controller.abort();
+  return true;
+}
 
 export function getRunningPushTasks(): PolicyPushTask[] {
   return Array.from(runningPushTasks.values());

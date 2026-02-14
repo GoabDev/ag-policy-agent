@@ -14,6 +14,9 @@ const pages: Map<SiteName, Page> = new Map();
 // Track session status
 const sessionStatus: Map<SiteName, { isActive: boolean; lastActivity: string }> = new Map();
 
+// Track when real work (corrections/pushes) last happened — separate from heartbeat pings
+const lastWorkActivity: Map<SiteName, string> = new Map();
+
 // ============================================
 // Browser Lifecycle
 // ============================================
@@ -54,7 +57,7 @@ export async function closeBrowser() {
 // ============================================
 
 function getSessionPath(site: SiteName): string {
-  if (site === 'ag') return config.ag.sessionPath;
+  if (site === 'ag' || site === 'ag_push') return config.ag.sessionPath;
   if (site === 'niid_push') return config.niidPush.sessionPath;
   return config.niid.sessionPath;
 }
@@ -65,30 +68,33 @@ function hasStoredSession(site: SiteName): boolean {
 }
 
 export async function getContext(site: SiteName): Promise<BrowserContext> {
+  // AG and AG_PUSH share the same browser context (same session/cookies, different pages)
+  const contextKey: SiteName = site === 'ag_push' ? 'ag' : site;
+
   // Return existing context if active
-  const existing = contexts.get(site);
+  const existing = contexts.get(contextKey);
   if (existing) return existing;
 
   const b = await launchBrowser();
-  const sessionPath = getSessionPath(site);
+  const sessionPath = getSessionPath(contextKey);
 
   let context: BrowserContext;
 
   // Try to load saved session
-  if (hasStoredSession(site)) {
-    log(`Loading saved session for ${site.toUpperCase()}`);
+  if (hasStoredSession(contextKey)) {
+    log(`Loading saved session for ${contextKey.toUpperCase()}`);
     try {
       context = await b.newContext({ storageState: sessionPath });
     } catch (err) {
-      log(`Failed to load session for ${site}, creating fresh context`, 'warn');
+      log(`Failed to load session for ${contextKey}, creating fresh context`, 'warn');
       context = await b.newContext();
     }
   } else {
-    log(`No saved session for ${site}, creating fresh context`);
+    log(`No saved session for ${contextKey}, creating fresh context`);
     context = await b.newContext();
   }
 
-  contexts.set(site, context);
+  contexts.set(contextKey, context);
   return context;
 }
 
@@ -103,13 +109,15 @@ export async function getPage(site: SiteName): Promise<Page> {
 }
 
 export async function saveSession(site: SiteName) {
-  const context = contexts.get(site);
+  // AG and AG_PUSH share the same context
+  const contextKey: SiteName = site === 'ag_push' ? 'ag' : site;
+  const context = contexts.get(contextKey);
   if (!context) {
-    log(`No active context for ${site}, cannot save session`, 'warn');
+    log(`No active context for ${contextKey}, cannot save session`, 'warn');
     return;
   }
 
-  const sessionPath = getSessionPath(site);
+  const sessionPath = getSessionPath(contextKey);
 
   // Ensure storage directory exists
   const dir = require('path').dirname(sessionPath);
@@ -117,36 +125,62 @@ export async function saveSession(site: SiteName) {
 
   await context.storageState({ path: sessionPath });
   const now = new Date().toISOString();
-  sessionStatus.set(site, { isActive: true, lastActivity: now });
 
-  log(`Session saved for ${site.toUpperCase()}`);
-  emitEvent('session:status', { site, isActive: true, lastActivity: now });
+  // Initialize work activity tracker if not set (e.g. on first login)
+  if (!lastWorkActivity.has(contextKey)) {
+    lastWorkActivity.set(contextKey, now);
+  }
+
+  // Update status for both ag and ag_push when saving AG session
+  sessionStatus.set(contextKey, { isActive: true, lastActivity: now });
+  if (contextKey === 'ag') {
+    sessionStatus.set('ag_push', { isActive: true, lastActivity: now });
+  }
+
+  log(`Session saved for ${contextKey.toUpperCase()}`);
+  emitEvent('session:status', { site: contextKey, isActive: true, lastActivity: now });
+  if (contextKey === 'ag') {
+    emitEvent('session:status', { site: 'ag_push', isActive: true, lastActivity: now });
+  }
 }
 
 export async function clearSession(site: SiteName) {
-  const sessionPath = getSessionPath(site);
+  // AG and AG_PUSH share the same context
+  const contextKey: SiteName = site === 'ag_push' ? 'ag' : site;
+  const sessionPath = getSessionPath(contextKey);
+
   if (fs.existsSync(sessionPath)) {
     fs.unlinkSync(sessionPath);
-    log(`Session cleared for ${site.toUpperCase()}`);
+    log(`Session cleared for ${contextKey.toUpperCase()}`);
   }
 
-  // Close existing context
-  const ctx = contexts.get(site);
+  // Close existing context (and both pages if AG)
+  const ctx = contexts.get(contextKey);
   if (ctx) {
     try { await ctx.close(); } catch {}
-    contexts.delete(site);
-    pages.delete(site);
+    contexts.delete(contextKey);
+    pages.delete(contextKey);
+    if (contextKey === 'ag') {
+      pages.delete('ag_push');
+    }
   }
 
-  sessionStatus.set(site, { isActive: false, lastActivity: new Date().toISOString() });
-  emitEvent('session:status', { site, isActive: false });
+  const now = new Date().toISOString();
+  sessionStatus.set(contextKey, { isActive: false, lastActivity: now });
+  emitEvent('session:status', { site: contextKey, isActive: false });
+  if (contextKey === 'ag') {
+    sessionStatus.set('ag_push', { isActive: false, lastActivity: now });
+    emitEvent('session:status', { site: 'ag_push', isActive: false });
+  }
 }
 
 export function getSessionStatus(site: SiteName) {
-  return sessionStatus.get(site) || {
-    isActive: hasStoredSession(site),
-    lastActivity: hasStoredSession(site)
-      ? fs.statSync(getSessionPath(site)).mtime.toISOString()
+  // AG and AG_PUSH share the same session
+  const lookupKey: SiteName = site === 'ag_push' ? 'ag' : site;
+  return sessionStatus.get(lookupKey) || {
+    isActive: hasStoredSession(lookupKey),
+    lastActivity: hasStoredSession(lookupKey)
+      ? fs.statSync(getSessionPath(lookupKey)).mtime.toISOString()
       : undefined,
   };
 }
@@ -175,9 +209,24 @@ export async function createWorkerContext(site: SiteName): Promise<{ context: Br
   return { context, page };
 }
 
-// Update last activity timestamp
+// Update last activity timestamp (called by heartbeats and work)
 export function touchSession(site: SiteName) {
   const now = new Date().toISOString();
-  const current = sessionStatus.get(site);
-  sessionStatus.set(site, { isActive: true, lastActivity: now, ...current });
+  // AG and AG_PUSH share the same session
+  const key: SiteName = site === 'ag_push' ? 'ag' : site;
+  const current = sessionStatus.get(key);
+  sessionStatus.set(key, { isActive: true, lastActivity: now, ...current });
+}
+
+// Mark that real user-initiated work happened (resets inactivity timer)
+export function touchWorkActivity(site: SiteName) {
+  const now = new Date().toISOString();
+  const key: SiteName = site === 'ag_push' ? 'ag' : site;
+  lastWorkActivity.set(key, now);
+}
+
+// Get last real work activity (for inactivity timeout checks)
+export function getLastWorkActivity(site: SiteName): string | undefined {
+  const key: SiteName = site === 'ag_push' ? 'ag' : site;
+  return lastWorkActivity.get(key);
 }

@@ -16,8 +16,9 @@ import {
   Clock,
   Layers,
   Construction,
+  Ban,
 } from "lucide-react";
-import { usePushPolicy } from "@/queries/useCorrections";
+import { usePushPolicy, useCancelPolicyPush } from "@/queries/useCorrections";
 import {
   policyPushSchema,
   type PolicyPushFormValues,
@@ -37,6 +38,7 @@ export function PolicyPushForm({
   tasks: Map<string, TaskState>;
 }) {
   const pushMutation = usePushPolicy();
+  const cancelMutation = useCancelPolicyPush();
 
   const {
     register,
@@ -88,7 +90,7 @@ export function PolicyPushForm({
       </CardHeader>
       <CardContent className="p-6 relative">
         {/* Development Overlay */}
-        <div className="absolute inset-0 z-10 bg-background/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 rounded-b-xl">
+        {/* <div className="absolute inset-0 z-10 bg-background/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 rounded-b-xl">
           <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/20">
             <Construction className="w-7 h-7 text-primary" />
           </div>
@@ -104,7 +106,7 @@ export function PolicyPushForm({
           <Badge className="bg-primary/10 text-primary text-[10px] font-medium mt-1">
             Coming Soon
           </Badge>
-        </div>
+        </div> */}
 
         <Tabs
           value={method}
@@ -242,6 +244,16 @@ export function PolicyPushForm({
                   <Badge className="ml-auto bg-primary/10 text-primary text-[9px]">
                     {task.steps.length} steps
                   </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => cancelMutation.mutate(task.id)}
+                    disabled={cancelMutation.isPending}
+                    title="Cancel task"
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
                 <div className="space-y-1">
                   {task.steps.map((s, i) => (
@@ -256,7 +268,7 @@ export function PolicyPushForm({
                       }`}
                     >
                       <Badge
-                        className={`h-3.5 text-[8px] px-1 ${s.site === "ag" ? "bg-primary/20 text-primary" : "bg-amber-500/20 text-amber-600 dark:text-amber-400"}`}
+                        className={`h-3.5 text-[8px] px-1 ${s.site === "ag_push" || s.site === "ag" ? "bg-primary/20 text-primary" : "bg-amber-500/20 text-amber-600 dark:text-amber-400"}`}
                       >
                         {(s.site || "").toUpperCase().replace("_", " ")}
                       </Badge>
@@ -291,12 +303,16 @@ export function PolicyPushForm({
                   className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
                     task.status === "completed"
                       ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-300"
-                      : "bg-destructive/5 text-destructive"
+                      : task.status === "cancelled"
+                        ? "bg-amber-500/5 text-amber-600 dark:text-amber-300"
+                        : "bg-destructive/5 text-destructive"
                   }`}
                 >
                   <span>
                     {task.status === "completed" ? (
                       <CheckCircle2 className="w-4 h-4" />
+                    ) : task.status === "cancelled" ? (
+                      <Ban className="w-4 h-4" />
                     ) : (
                       <XCircle className="w-4 h-4" />
                     )}
@@ -305,7 +321,9 @@ export function PolicyPushForm({
                   <span className="ml-auto text-[10px] opacity-60">
                     {task.status === "completed"
                       ? "Done"
-                      : task.error || "Failed"}
+                      : task.status === "cancelled"
+                        ? "Cancelled"
+                        : task.error || "Failed"}
                   </span>
                 </div>
               ))}

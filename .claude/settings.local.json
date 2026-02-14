@@ -11,7 +11,8 @@
       "Bash(npm install:*)",
       "Bash(npm ls:*)",
       "WebFetch(domain:ui.shadcn.com)",
-      "Bash(npx shadcn@latest add:*)"
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(powershell -Command:*)"
     ]
   }
 }

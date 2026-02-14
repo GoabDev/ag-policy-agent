@@ -6,6 +6,7 @@ import {
   touchSession,
   getSessionStatus,
   clearSession,
+  getLastWorkActivity,
 } from "./controller";
 import { loginToAG } from "./actions/ag";
 import { openLoginPopup } from "./manualLogin";
@@ -14,16 +15,22 @@ import { SiteName } from "../types";
 
 let heartbeatTimers: Map<SiteName, NodeJS.Timeout> = new Map();
 
+// Kill sessions after this many ms of inactivity (default: 5 hours)
+const SESSION_INACTIVITY_TIMEOUT = config.sessionInactivityTimeout;
+
 // Pages we stay parked on — where the automation work happens
 const PARK_PAGES: Record<SiteName, string> = {
   ag: "https://aginsuranceapplications.com/card/Policy/Policy_Update.aspx",
   niid: "https://niid.org/App_ADM_Module/Change_Request.aspx",
+  ag_push:
+    "https://aginsuranceapplications.com/card/Utility/Spool_Unpushed.aspx",
   niid_push: "https://niid.org/App_POL_Module/Upload_Policy.aspx",
 };
 
 // URLs that indicate expired sessions
 const SESSION_EXPIRED_INDICATORS: Record<SiteName, string> = {
   ag: "ErrorPage.aspx", // Redirects to ErrorPage.aspx?Error=Sorry%20Your%20Session%20has%20Expired
+  ag_push: "ErrorPage.aspx", // Redirects to ErrorPage.aspx?Error=Sorry%20Your%20Session%20has%20Expired
   niid: "/default.aspx", // Redirects back to login page
   niid_push: "/default.aspx", // Same login redirect as niid
 };
@@ -40,13 +47,21 @@ async function handleExpiredSession(site: SiteName, page: Page) {
   if (site === "ag") {
     log(`Session expired for AG, attempting re-login...`, "warn");
     await loginToAG();
-    await page.goto(PARK_PAGES.ag, {
+
+    // Re-navigate both AG pages to their park pages
+    await page.goto(PARK_PAGES["ag"], {
       waitUntil: "domcontentloaded",
       timeout: 30000,
     });
+    const agPushPage = await getPage("ag_push");
+    await agPushPage.goto(PARK_PAGES["ag_push"], {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+
     await saveSession("ag");
     touchSession("ag");
-    log(`AG session recovered — back on park page`);
+    log(`AG session recovered — both pages back on park pages`);
     emitEvent("keepalive:ping", { site: "ag", status: "recovered" });
   } else if (site === "niid" || site === "niid_push") {
     const label = site === "niid_push" ? "NIID Push" : "NIID";
@@ -79,6 +94,45 @@ async function handleExpiredSession(site: SiteName, page: Page) {
 // Heartbeat: Keeps sessions alive
 // ============================================x
 
+async function sendHeartbeatForPage(site: SiteName) {
+  const page = await getPage(site);
+  const targetUrl = PARK_PAGES[site];
+  const currentUrl = page.url();
+  const targetOrigin = new URL(targetUrl).origin;
+
+  const isOnSite = currentUrl.startsWith(targetOrigin);
+
+  if (!isOnSite) {
+    log(
+      `Page not on ${site.toUpperCase()} domain (at ${currentUrl}), navigating to park page...`,
+    );
+    await page.goto(targetUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+
+    const landedUrl = page.url();
+    if (isSessionExpired(site, landedUrl)) {
+      return "expired";
+    }
+  } else {
+    if (isSessionExpired(site, currentUrl)) {
+      return "expired";
+    }
+
+    const response = await page.evaluate(async (url) => {
+      const res = await fetch(url, { credentials: "include" });
+      return { ok: res.ok, status: res.status, url: res.url };
+    }, targetUrl);
+
+    if (isSessionExpired(site, response.url)) {
+      return "expired";
+    }
+  }
+
+  return "ok";
+}
+
 async function sendHeartbeat(site: SiteName) {
   const status = getSessionStatus(site);
 
@@ -90,46 +144,35 @@ async function sendHeartbeat(site: SiteName) {
     return;
   }
 
-  try {
-    const page = await getPage(site);
-    const targetUrl = PARK_PAGES[site];
-    const currentUrl = page.url();
-    const targetOrigin = new URL(targetUrl).origin;
-
-    // If the page isn't on the target domain yet (e.g. about:blank on first run),
-    // we need a full navigation to park there before lightweight fetches will work
-    const isOnSite = currentUrl.startsWith(targetOrigin);
-
-    if (!isOnSite) {
+  // Auto-kill session after prolonged inactivity (based on last real work, not heartbeat pings)
+  const lastWork = getLastWorkActivity(site) || status.lastActivity;
+  if (lastWork) {
+    const idleMs = Date.now() - new Date(lastWork).getTime();
+    if (idleMs > SESSION_INACTIVITY_TIMEOUT) {
+      const idleHours = (idleMs / 3600000).toFixed(1);
       log(
-        `Page not on ${site.toUpperCase()} domain (at ${currentUrl}), navigating to park page...`,
+        `Session ${site.toUpperCase()} idle for ${idleHours}h — auto-killing to avoid unnecessary traffic`,
+        "warn",
       );
-      await page.goto(targetUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 30000,
+      stopHeartbeat(site);
+      await clearSession(site);
+      emitEvent("session:status", {
+        site,
+        isActive: false,
+        reason: "inactivity_timeout",
       });
+      return;
+    }
+  }
 
-      // Check if navigation got redirected to an expiry page
-      const landedUrl = page.url();
-      if (isSessionExpired(site, landedUrl)) {
-        await handleExpiredSession(site, page);
-        return;
-      }
-    } else {
-      // Already on the site — check if we're stuck on an expiry page
-      if (isSessionExpired(site, currentUrl)) {
-        await handleExpiredSession(site, page);
-        return;
-      }
+  try {
+    // For AG, heartbeat both the ag page and the ag_push page (shared session)
+    const pagesToRefresh: SiteName[] = site === "ag" ? ["ag", "ag_push"] : [site];
+    const page = await getPage(site);
 
-      // Lightweight fetch to keep session alive
-      // fetch() follows redirects, so we check the final URL it landed on
-      const response = await page.evaluate(async (url) => {
-        const res = await fetch(url, { credentials: "include" });
-        return { ok: res.ok, status: res.status, url: res.url };
-      }, targetUrl);
-
-      if (isSessionExpired(site, response.url)) {
+    for (const pageSite of pagesToRefresh) {
+      const result = await sendHeartbeatForPage(pageSite);
+      if (result === "expired") {
         await handleExpiredSession(site, page);
         return;
       }
@@ -154,7 +197,10 @@ export function startHeartbeat(site: SiteName) {
   // Stop existing heartbeat if any
   stopHeartbeat(site);
 
-  const interval = (site === "niid" || site === "niid_push") ? config.niidKeepAliveInterval : config.keepAliveInterval;
+  const interval =
+    site === "niid" || site === "niid_push"
+      ? config.niidKeepAliveInterval
+      : config.keepAliveInterval; // ag & ag_push use the same interval
 
   log(
     `Starting heartbeat for ${site.toUpperCase()} (every ${interval / 60000} min)`,
@@ -164,10 +210,7 @@ export function startHeartbeat(site: SiteName) {
   sendHeartbeat(site);
 
   // Then on interval
-  const timer = setInterval(
-    () => sendHeartbeat(site),
-    interval,
-  );
+  const timer = setInterval(() => sendHeartbeat(site), interval);
   heartbeatTimers.set(site, timer);
 }
 
@@ -185,13 +228,13 @@ export function startAllHeartbeats() {
   const niidStatus = getSessionStatus("niid");
   const niidPushStatus = getSessionStatus("niid_push");
 
-  if (agStatus.isActive) startHeartbeat("ag");
+  if (agStatus.isActive) startHeartbeat("ag"); // AG heartbeat covers ag_push too
   if (niidStatus.isActive) startHeartbeat("niid");
   if (niidPushStatus.isActive) startHeartbeat("niid_push");
 }
 
 export function stopAllHeartbeats() {
-  stopHeartbeat("ag");
+  stopHeartbeat("ag"); // AG heartbeat covers ag_push too
   stopHeartbeat("niid");
   stopHeartbeat("niid_push");
 }

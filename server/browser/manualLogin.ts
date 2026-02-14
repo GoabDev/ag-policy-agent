@@ -5,8 +5,8 @@ import fs from "fs";
 import path from "path";
 import { SiteName } from "../types";
 
-// Track whether a manual login popup is already open
-let loginInProgress = false;
+// Track which sites have a login popup open (allows concurrent logins for different sites)
+const loginsInProgress: Set<SiteName> = new Set();
 
 /**
  * Opens a temporary headed browser for manual login (CAPTCHA, etc.).
@@ -16,13 +16,13 @@ let loginInProgress = false;
  * Returns true if login succeeded, false if it timed out or failed.
  */
 export async function openLoginPopup(site: SiteName): Promise<boolean> {
-  if (loginInProgress) {
-    log(`Manual login popup already open, skipping duplicate request`, "warn");
+  if (loginsInProgress.has(site)) {
+    log(`Manual login popup already open for ${site.toUpperCase()}, skipping duplicate`, "warn");
     return false;
   }
 
-  loginInProgress = true;
-  const siteConfig = site === "ag" ? config.ag : site === "niid_push" ? config.niidPush : config.niid;
+  loginsInProgress.add(site);
+  const siteConfig = (site === "ag" || site === "ag_push") ? config.ag : site === "niid_push" ? config.niidPush : config.niid;
   const sessionPath = siteConfig.sessionPath;
 
   log(`Opening manual login popup for ${site.toUpperCase()}...`);
@@ -131,7 +131,7 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
     if (browser) await browser.close().catch(() => {});
     return false;
   } finally {
-    loginInProgress = false;
+    loginsInProgress.delete(site);
   }
 }
 
@@ -142,8 +142,8 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
 if (require.main === module) {
   const site = process.argv[2] as SiteName;
 
-  if (!site || !["ag", "niid", "niid_push"].includes(site)) {
-    console.log("Usage: npx ts-node src/browser/manualLogin.ts <ag|niid|niid_push>");
+  if (!site || !["ag", "ag_push", "niid", "niid_push"].includes(site)) {
+    console.log("Usage: npx ts-node src/browser/manualLogin.ts <ag|ag_push|niid|niid_push>");
     process.exit(1);
   }
 

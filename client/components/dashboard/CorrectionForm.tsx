@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Combobox } from '@/components/ui/combobox';
-import { RefreshCw, Send, Layers, Pin, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { RefreshCw, Send, Layers, Pin, CheckCircle2, XCircle, Clock, Ban } from 'lucide-react';
 import { correctionSchema, type CorrectionFormValues } from '@/schema/correction';
 import { Badge } from '@/components/ui/badge';
-import { useRunCorrection } from '@/queries/useCorrections';
+import { useRunCorrection, useCancelCorrection } from '@/queries/useCorrections';
 import { getVehicleData, refreshVehicleData } from '@/service/api';
 import type { TaskState } from '@/hooks/useSSE';
 
@@ -25,6 +25,7 @@ export function CorrectionForm({
   tasks: Map<string, TaskState>,
 }) {
   const runMutation = useRunCorrection();
+  const cancelMutation = useCancelCorrection();
 
   const {
     register,
@@ -304,6 +305,16 @@ export function CorrectionForm({
                   <Badge className="ml-auto bg-primary/10 text-primary text-[9px]">
                     {task.steps.length} steps
                   </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => cancelMutation.mutate(task.id)}
+                    disabled={cancelMutation.isPending}
+                    title="Cancel task"
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
                 <div className="space-y-1">
                   {task.steps.map((s, i) => (
@@ -332,12 +343,14 @@ export function CorrectionForm({
           <div className="mt-4 space-y-2">
             {Array.from(tasks.values()).filter(t => t.status !== 'running').map((task) => (
               <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
-                task.status === 'completed' ? 'bg-emerald-500/5 text-emerald-600 dark:text-emerald-300' : 'bg-destructive/5 text-destructive'
+                task.status === 'completed' ? 'bg-emerald-500/5 text-emerald-600 dark:text-emerald-300' :
+                task.status === 'cancelled' ? 'bg-amber-500/5 text-amber-600 dark:text-amber-300' :
+                'bg-destructive/5 text-destructive'
               }`}>
-                <span>{task.status === 'completed' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}</span>
+                <span>{task.status === 'completed' ? <CheckCircle2 className="w-4 h-4" /> : task.status === 'cancelled' ? <Ban className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}</span>
                 <span>{task.type} — {task.policyNumber}</span>
                 <span className="ml-auto text-[10px] opacity-60">
-                  {task.status === 'completed' ? 'Done' : task.error || 'Failed'}
+                  {task.status === 'completed' ? 'Done' : task.status === 'cancelled' ? 'Cancelled' : task.error || 'Failed'}
                 </span>
               </div>
             ))}

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
 import { config } from "./config";
 import { addSSEClient, log, loadTaskLogs } from "./utils/logger";
 import { getSessionStatus, closeBrowser } from "./browser/controller";
@@ -11,6 +12,7 @@ import {
 } from "./browser/keepAlive";
 import {
   runCorrection,
+  cancelCorrection,
   getRunningTasks,
   getTaskHistory,
 } from "./agents/correctionRunner";
@@ -18,9 +20,17 @@ import { getPoolStatus, destroyAllWorkers } from "./browser/workerPool";
 import { CorrectionInput, PolicyPushInput } from "./types";
 import {
   runPolicyPush,
+  cancelPolicyPush,
   getRunningPushTasks,
   getPushTaskHistory,
 } from "./agents/policyPushRunner";
+import { loadSettings, getSettings, saveSettings } from "./settings";
+import {
+  startLogCleanup,
+  stopLogCleanup,
+  runLogCleanup,
+  getCleanableLogCount,
+} from "./jobs/logCleanup";
 
 const app = express();
 app.use(cors());
@@ -46,6 +56,7 @@ app.get("/api/status", (req, res) => {
       workerPool: getPoolStatus(),
       sessions: {
         ag: getSessionStatus("ag"),
+        ag_push: getSessionStatus("ag_push"),
         niid: getSessionStatus("niid"),
         niid_push: getSessionStatus("niid_push"),
       },
@@ -137,6 +148,17 @@ app.post("/api/corrections/run", async (req, res) => {
   }
 });
 
+// Cancel a running correction task
+app.post("/api/corrections/:taskId/cancel", (req, res) => {
+  const { taskId } = req.params;
+  const cancelled = cancelCorrection(taskId);
+  if (cancelled) {
+    res.json({ success: true, data: { message: "Cancellation requested" } });
+  } else {
+    res.status(404).json({ success: false, error: "Task not found or already finished" });
+  }
+});
+
 // Get correction history
 app.get("/api/corrections/logs", (req, res) => {
   const history = getTaskHistory();
@@ -149,15 +171,15 @@ app.get("/api/corrections/logs", (req, res) => {
   res.json({ success: true, data: merged });
 });
 
-// Login to A&G (auto)
+// Login to A&G (auto — sets up both correction and push pages)
 app.post("/api/sessions/login-ag", async (req, res) => {
   try {
     const { loginToAG } = await import("./browser/actions/ag");
     await loginToAG();
-    startHeartbeat("ag");
+    startHeartbeat("ag"); // Single heartbeat covers both ag and ag_push pages
     res.json({
       success: true,
-      data: { message: "Logged into A&G successfully" },
+      data: { message: "Logged into A&G successfully (corrections + push)" },
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -260,6 +282,17 @@ app.post("/api/policy-push/run", async (req, res) => {
   }
 });
 
+// Cancel a running policy push task
+app.post("/api/policy-push/:taskId/cancel", (req, res) => {
+  const { taskId } = req.params;
+  const cancelled = cancelPolicyPush(taskId);
+  if (cancelled) {
+    res.json({ success: true, data: { message: "Cancellation requested" } });
+  } else {
+    res.status(404).json({ success: false, error: "Task not found or already finished" });
+  }
+});
+
 // Get policy push history
 app.get("/api/policy-push/logs", (req, res) => {
   const running = getRunningPushTasks();
@@ -290,6 +323,61 @@ app.post("/api/sessions/login-niid-push", async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// Open both NIID + NIID Push login popups at the same time
+app.post("/api/sessions/login-niid-all", async (req, res) => {
+  try {
+    const { openLoginPopup } = await import("./browser/manualLogin");
+    res.json({
+      success: true,
+      data: {
+        message:
+          "Both NIID login popups opened — please complete login in both browser windows.",
+      },
+    });
+
+    // Launch both popups in parallel
+    const [niidSuccess, niidPushSuccess] = await Promise.all([
+      openLoginPopup("niid"),
+      openLoginPopup("niid_push"),
+    ]);
+
+    if (niidSuccess) startHeartbeat("niid");
+    if (niidPushSuccess) startHeartbeat("niid_push");
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================
+// Settings
+// ============================================
+
+app.get("/api/settings", (req, res) => {
+  res.json({ success: true, data: getSettings() });
+});
+
+app.put("/api/settings", (req, res) => {
+  try {
+    const updated = saveSettings(req.body);
+    res.json({ success: true, data: updated });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/settings/clean-logs", (req, res) => {
+  try {
+    const result = runLogCleanup();
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/settings/log-stats", (req, res) => {
+  res.json({ success: true, data: getCleanableLogCount() });
 });
 
 // ============================================
@@ -333,6 +421,36 @@ app.get("/{*path}", (req, res) => {
 });
 
 // ============================================
+// Startup: ensure storage dirs & clean stale downloads
+// ============================================
+
+function initStorage(): void {
+  // Ensure required directories exist
+  for (const dir of [config.storagePath, config.logsPath]) {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  }
+
+  // Clean up any orphaned download files left from a previous crash
+  const downloadsDir = path.join(config.storagePath, "downloads");
+  if (fs.existsSync(downloadsDir)) {
+    try {
+      fs.rmSync(downloadsDir, { recursive: true, force: true });
+      log("Cleaned up stale downloads directory");
+    } catch {
+      // Non-critical
+    }
+  }
+}
+
+initStorage();
+
+// Load user settings (overrides .env defaults)
+loadSettings();
+
+// Start periodic log cleanup
+startLogCleanup();
+
+// ============================================
 // Start Server
 // ============================================
 
@@ -356,6 +474,7 @@ const server = app.listen(config.port, () => {
 // Graceful shutdown
 process.on("SIGINT", async () => {
   log("Shutting down...");
+  stopLogCleanup();
   stopAllHeartbeats();
   await destroyAllWorkers();
   await closeBrowser();
@@ -363,6 +482,7 @@ process.on("SIGINT", async () => {
 });
 
 process.on("SIGTERM", async () => {
+  stopLogCleanup();
   stopAllHeartbeats();
   await destroyAllWorkers();
   await closeBrowser();

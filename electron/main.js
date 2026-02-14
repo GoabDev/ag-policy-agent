@@ -55,6 +55,11 @@ function startServer() {
       SESSION_TOKEN,
       ELECTRON: "true",
       PROJECT_ROOT: isDev ? path.join(__dirname, "..") : process.resourcesPath,
+      // Use OS-standard user data dir for storage (downloads, logs, sessions)
+      // so the app works regardless of install location
+      STORAGE_PATH: isDev
+        ? path.join(__dirname, "..", "storage")
+        : path.join(app.getPath("userData"), "storage"),
     };
 
     if (isDev) {

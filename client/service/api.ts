@@ -32,10 +32,21 @@ export const refreshVehicleData = () => api.get('/api/vehicle-data?refresh=true'
 export const loginAG = () => api.post('/api/sessions/login-ag');
 export const loginNIID = () => api.post('/api/sessions/login-niid');
 export const loginNIIDPush = () => api.post('/api/sessions/login-niid-push');
+export const loginNIIDAll = () => api.post('/api/sessions/login-niid-all');
 export const startKeepAlive = () => api.post('/api/sessions/keepalive');
+
+// Cancellation
+export const cancelCorrection = (taskId: string) => api.post(`/api/corrections/${taskId}/cancel`);
+export const cancelPolicyPush = (taskId: string) => api.post(`/api/policy-push/${taskId}/cancel`);
 
 // Policy Push
 export const pushPolicy = (data: { method: string; policyNumber?: string; fromDate?: string; toDate?: string }) => {
   return api.post('/api/policy-push/run', data);
 };
 export const getPushLogs = () => api.get('/api/policy-push/logs');
+
+// Settings
+export const getSettingsApi = () => api.get('/api/settings');
+export const updateSettings = (data: any) => api.put('/api/settings', data);
+export const cleanLogs = () => api.post('/api/settings/clean-logs');
+export const getLogStats = () => api.get('/api/settings/log-stats');

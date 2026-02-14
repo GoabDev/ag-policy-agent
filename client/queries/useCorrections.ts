@@ -25,6 +25,28 @@ export function useRunCorrection() {
   });
 }
 
+export function useCancelCorrection() {
+  return useMutation({
+    mutationFn: api.cancelCorrection,
+    onError: (error: Error) => {
+      toast.error('Failed to cancel', {
+        description: error.message || 'Something went wrong',
+      });
+    },
+  });
+}
+
+export function useCancelPolicyPush() {
+  return useMutation({
+    mutationFn: api.cancelPolicyPush,
+    onError: (error: Error) => {
+      toast.error('Failed to cancel', {
+        description: error.message || 'Something went wrong',
+      });
+    },
+  });
+}
+
 export function usePushPolicy() {
   const queryClient = useQueryClient();
   return useMutation({

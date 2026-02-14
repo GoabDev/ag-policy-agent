@@ -62,6 +62,24 @@ export function useLoginNIIDPush() {
   });
 }
 
+export function useLoginNIIDAll() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.loginNIIDAll,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      toast.success('Both NIID login popups opened', {
+        description: 'Complete login in both browser windows',
+      });
+    },
+    onError: (error: Error) => {
+      toast.error('NIID login failed', {
+        description: error.message || 'Something went wrong',
+      });
+    },
+  });
+}
+
 export function useKeepAlive() {
   return useMutation({
     mutationFn: api.startKeepAlive,

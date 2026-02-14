@@ -8,6 +8,7 @@ import { SiteName, Worker, WorkerPoolStatus } from '../types';
 // Park pages — where workers navigate after release
 const PARK_PAGES: Record<SiteName, string> = {
   ag: 'https://aginsuranceapplications.com/card/Policy/Policy_Update.aspx',
+  ag_push: 'https://aginsuranceapplications.com/card/Utility/Spool_Unpushed.aspx',
   niid: 'https://niid.org/App_ADM_Module/Change_Request.aspx',
   niid_push: 'https://niid.org/App_POL_Module/Upload_Policy.aspx',
 };

@@ -75,22 +75,31 @@ export async function loginToAG(): Promise<Page> {
     });
     log("Already logged into A&G");
     touchSession("ag");
-    return page;
   } catch {
     // Not logged in, proceed with login
+    await page.fill(SELECTORS.login.usernameField, config.ag.username);
+    await page.fill(SELECTORS.login.passwordField, config.ag.password);
+    await page.click(SELECTORS.login.submitButton);
+
+    // Wait for dashboard to load
+    await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
+      timeout: 30000,
+    });
   }
 
-  // Fill login form
-  await page.fill(SELECTORS.login.usernameField, config.ag.username);
-  await page.fill(SELECTORS.login.passwordField, config.ag.password);
-  await page.click(SELECTORS.login.submitButton);
+  // Also set up the ag_push page in the same context (shared cookies)
+  const agPushPage = await getPage("ag_push");
+  try {
+    await agPushPage.goto(config.ag.spoolUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    log("AG Push page navigated to spool page");
+  } catch (err: any) {
+    log(`Failed to navigate AG Push page to spool: ${err.message}`, "warn");
+  }
 
-  // Wait for dashboard to load
-  await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
-    timeout: 30000,
-  });
-
-  // Save session
+  // Save session (covers both pages since same context)
   await saveSession("ag");
   log("A&G login successful ✅");
 
@@ -166,7 +175,11 @@ export async function correctName(
   page: Page,
   newFirstName: string,
   newLastName: string,
-): Promise<void> {
+): Promise<{ oldFirstName: string; oldLastName: string }> {
+  // Read old values before overwriting
+  const oldFirstName = await page.inputValue(SELECTORS.policy.firstNameField);
+  const oldLastName = await page.inputValue(SELECTORS.policy.lastNameField);
+  log(`Old name: ${oldFirstName} ${oldLastName}`);
   log(`Correcting name to: ${newFirstName} ${newLastName}`);
 
   await page.fill(SELECTORS.policy.firstNameField, ""); // Clear existing
@@ -212,6 +225,8 @@ export async function correctName(
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
   log("Name correction saved on A&G ✅");
+
+  return { oldFirstName, oldLastName };
 }
 
 export async function correctRegistration(
@@ -258,7 +273,11 @@ export async function correctVehicleMake(
   page: Page,
   newMake: string,
   newModel: string,
-): Promise<void> {
+): Promise<{ oldMake: string; oldModel: string }> {
+  // Read old values before changing
+  const oldMake = await page.$eval(SELECTORS.policy.vehicleMakeField, (el) => (el as HTMLSelectElement).value);
+  const oldModel = await page.$eval(SELECTORS.policy.vehicleModelField, (el) => (el as HTMLSelectElement).value);
+  log(`Old vehicle: ${oldMake} ${oldModel}`);
   log(`Correcting vehicle make to: ${newMake} and model to: ${newModel}`);
 
   // Vehicle Make and Model are <select> dropdowns, not text inputs
@@ -291,16 +310,20 @@ export async function correctVehicleMake(
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
   log("Vehicle make correction saved on A&G ✅");
+
+  return { oldMake, oldModel };
 }
 
 export async function correctRegandChasis(
   page: Page,
   newRegNumber: string,
   newChassisNumber: string,
-): Promise<string> {
-  // First, read the OLD registration number (needed for NIID lookup)
+): Promise<{ oldRegNumber: string; oldChassisNumber: string }> {
+  // Read OLD values before overwriting
   const oldRegNumber = await page.inputValue(SELECTORS.policy.regNumberField);
+  const oldChassisNumber = await page.inputValue(SELECTORS.policy.chassisNumberField);
   log(`Old registration number: ${oldRegNumber}`);
+  log(`Old chassis number: ${oldChassisNumber}`);
 
   log(
     `Correcting registration to: ${newRegNumber} and chassis to: ${newChassisNumber}`,
@@ -337,13 +360,16 @@ export async function correctRegandChasis(
 
   log("Registration and Chassis correction saved on A&G ✅");
 
-  return oldRegNumber; // Return old reg for NIID
+  return { oldRegNumber, oldChassisNumber };
 }
 
 export async function correctChassis(
   page: Page,
   newChassisNumber: string,
-): Promise<void> {
+): Promise<string> {
+  // Read old chassis before overwriting
+  const oldChassisNumber = await page.inputValue(SELECTORS.policy.chassisNumberField);
+  log(`Old chassis number: ${oldChassisNumber}`);
   log(`Correcting chassis to: ${newChassisNumber}`);
 
   await page.fill(SELECTORS.policy.chassisNumberField, "");
@@ -373,6 +399,8 @@ export async function correctChassis(
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
   log("Chassis correction saved on A&G ✅");
+
+  return oldChassisNumber;
 }
 
 // ============================================

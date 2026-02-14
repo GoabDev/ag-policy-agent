@@ -40,14 +40,19 @@ function getEnv(key: string, defaultValue?: string): string {
   return value;
 }
 
-export const config: Config = {
+// STORAGE_PATH is set by Electron main process to app.getPath("userData")/storage
+// so files are written to an OS-standard writable location regardless of install path.
+// Falls back to <projectRoot>/storage for dev mode or non-Electron usage.
+const storagePath = process.env.STORAGE_PATH || path.join(resourceBase, "storage");
+
+export const config: Config = Object.seal({
   // A&G Platform
   ag: {
     url: getEnv("AG_URL"),
     spoolUrl: getEnv("AG_SPOOL_URL", "https://aginsuranceapplications.com/card/Utility/Spool_Unpushed.aspx"),
     username: getEnv("AG_USERNAME"),
     password: getEnv("AG_PASSWORD"),
-    sessionPath: path.join(resourceBase, "storage/ag-session.json"),
+    sessionPath: path.join(storagePath, "ag-session.json"),
   },
 
   // NIID (corrections)
@@ -56,7 +61,7 @@ export const config: Config = {
     policyCorrectionUrl: getEnv("NIID_POLICY_CORRECTION_URL"),
     username: getEnv("NIID_USERNAME"),
     password: getEnv("NIID_PASSWORD"),
-    sessionPath: path.join(resourceBase, "storage/niid-session.json"),
+    sessionPath: path.join(storagePath, "niid-session.json"),
   },
 
   // NIID (policy push — separate session with alt credentials)
@@ -65,7 +70,7 @@ export const config: Config = {
     uploadUrl: getEnv("NIID_UPLOAD_URL", "https://niid.org/App_POL_Module/Upload_Policy.aspx"),
     username: getEnv("NIID_ALT_USERNAME"),
     password: getEnv("NIID_ALT_PASSWORD"),
-    sessionPath: path.join(resourceBase, "storage/niid-push-session.json"),
+    sessionPath: path.join(storagePath, "niid-push-session.json"),
   },
 
   // Server
@@ -77,6 +82,10 @@ export const config: Config = {
   niidKeepAliveInterval:
     parseInt(getEnv("NIID_KEEPALIVE_INTERVAL", "2"), 10) * 60 * 1000,
 
+  // Auto-kill sessions after inactivity (hours → ms, default: 5 hours)
+  sessionInactivityTimeout:
+    parseInt(getEnv("SESSION_INACTIVITY_HOURS", "5"), 10) * 60 * 60 * 1000,
+
   // Worker pool
   maxWorkers: parseInt(getEnv("MAX_WORKERS", "5"), 10),
 
@@ -84,7 +93,7 @@ export const config: Config = {
   headless: getEnv("HEADLESS", "true") === "true",
 
   // Paths
-  storagePath: path.join(resourceBase, "storage"),
-  logsPath: path.join(resourceBase, "storage/logs"),
+  storagePath,
+  logsPath: path.join(storagePath, "logs"),
   dashboardPath: path.join(resourceBase, "client/out"),
-};
+});

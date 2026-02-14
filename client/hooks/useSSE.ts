@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 export interface TaskState {
@@ -6,11 +7,12 @@ export interface TaskState {
   type: string;
   policyNumber?: string;
   steps: any[];
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
   error?: string;
 }
 
 export function useSSE() {
+  const queryClient = useQueryClient();
   const [logs, setLogs] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map());
 
@@ -90,6 +92,20 @@ export function useSSE() {
           });
           addLog('x-circle', `Task failed: ${ev.data?.error || ''}`, time);
 
+        } else if (ev.type === 'task:cancelled' && taskId) {
+          setTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, { ...task, status: 'cancelled' });
+              toast.warning(`Correction cancelled`, {
+                description: task.policyNumber ? `${task.type} — ${task.policyNumber}` : task.type,
+              });
+            }
+            return next;
+          });
+          addLog('x-circle', 'Task cancelled by user', time);
+
         } else if (ev.type === 'push:started' && taskId) {
           setTasks((prev) => {
             const next = new Map(prev);
@@ -147,6 +163,20 @@ export function useSSE() {
           });
           addLog('x-circle', `Policy push failed: ${ev.data?.error || ''}`, time);
 
+        } else if (ev.type === 'push:cancelled' && taskId) {
+          setTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, { ...task, status: 'cancelled' });
+              toast.warning(`Policy push cancelled`, {
+                description: task.policyNumber,
+              });
+            }
+            return next;
+          });
+          addLog('x-circle', 'Policy push cancelled by user', time);
+
         } else if (ev.type === 'session:login_required') {
           toast.warning('Login required', {
             description: ev.data?.message || 'A session has expired. Please log in again.',
@@ -156,6 +186,9 @@ export function useSSE() {
           toast.error('Login failed', {
             description: ev.data?.message || 'Session login failed. Please try again.',
           });
+
+        } else if (ev.type === 'session:status') {
+          queryClient.invalidateQueries({ queryKey: ['status'] });
 
         } else if (ev.type === 'log') {
           const d = ev.data;
@@ -174,7 +207,7 @@ export function useSSE() {
     return () => {
       if (sse) sse.close();
     };
-  }, [addLog]);
+  }, [addLog, queryClient]);
 
   // Clean up completed/failed tasks after 30 seconds
   useEffect(() => {
