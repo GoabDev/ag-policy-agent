@@ -206,6 +206,11 @@ ag-policy-agent/
 
 ## Changelog
 
+### v2.1.1 — Auto-Update UX Improvements
+
+- **Download progress indicator** — Taskbar progress bar and window title show download percentage during auto-updates
+- **Update error notifications** — User-facing error dialog when an update fails to download, instead of silently swallowing errors
+
 ### v2.1.0 — History Redesign, Upload Results & Headless Toggle
 
 #### New Features

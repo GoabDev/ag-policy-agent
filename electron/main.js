@@ -176,8 +176,26 @@ autoUpdater.on("update-available", (info) => {
   });
 });
 
+autoUpdater.on("download-progress", (progress) => {
+  const percent = Math.round(progress.percent);
+  console.log(`[updater] Download progress: ${percent}%`);
+
+  // Show progress on the taskbar icon (Windows)
+  if (mainWindow) {
+    mainWindow.setProgressBar(progress.percent / 100);
+    mainWindow.setTitle(`A&G Policy Agent — Updating ${percent}%`);
+  }
+});
+
 autoUpdater.on("update-downloaded", (info) => {
   console.log(`[updater] Update downloaded: v${info.version}`);
+
+  // Clear taskbar progress and restore title
+  if (mainWindow) {
+    mainWindow.setProgressBar(-1);
+    mainWindow.setTitle("A&G Policy Agent");
+  }
+
   dialog
     .showMessageBox(mainWindow, {
       type: "info",
@@ -195,6 +213,19 @@ autoUpdater.on("update-downloaded", (info) => {
 
 autoUpdater.on("error", (err) => {
   console.error("[updater] Error:", err.message);
+
+  // Clear taskbar progress on error
+  if (mainWindow) {
+    mainWindow.setProgressBar(-1);
+    mainWindow.setTitle("A&G Policy Agent");
+
+    dialog.showMessageBox(mainWindow, {
+      type: "error",
+      title: "Update Failed",
+      message: "Failed to download the update. Please check your internet connection and try again later.",
+      detail: err.message,
+    });
+  }
 });
 
 // ── App ready ───────────────────────────────────────────────────────
