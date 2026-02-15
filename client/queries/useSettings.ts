@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { sileo } from "sileo";
 import * as api from "@/service/api";
 
 export function useSettings() {
@@ -15,12 +15,10 @@ export function useUpdateSettings() {
     mutationFn: api.updateSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
-      toast.success("Settings saved");
+      sileo.success({ title: "Settings saved" });
     },
     onError: (error: Error) => {
-      toast.error("Failed to save settings", {
-        description: error.message || "Something went wrong",
-      });
+      sileo.error({ title: "Failed to save settings", description: error.message || "Something went wrong" });
     },
   });
 }
@@ -31,14 +29,10 @@ export function useCleanLogs() {
     mutationFn: api.cleanLogs,
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["log-stats"] });
-      toast.success(
-        `Cleaned ${data.data?.deleted ?? 0} log files`
-      );
+      sileo.success({ title: `Cleaned ${data.data?.deleted ?? 0} log files` });
     },
     onError: (error: Error) => {
-      toast.error("Log cleanup failed", {
-        description: error.message || "Something went wrong",
-      });
+      sileo.error({ title: "Log cleanup failed", description: error.message || "Something went wrong" });
     },
   });
 }

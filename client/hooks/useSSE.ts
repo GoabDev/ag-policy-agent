@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { sileo } from 'sileo';
 
 export interface TaskState {
   id: string;
@@ -70,9 +70,7 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'completed' });
-              toast.success(`Correction completed`, {
-                description: `${task.type} — ${task.policyNumber}`,
-              });
+              sileo.success({ title: 'Correction completed', description: `${task.type} — ${task.policyNumber}` });
             }
             return next;
           });
@@ -84,9 +82,7 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'failed', error: ev.data?.error });
-              toast.error(`Correction failed`, {
-                description: ev.data?.error || `${task.type} — ${task.policyNumber}`,
-              });
+              sileo.error({ title: 'Correction failed', description: ev.data?.error || `${task.type} — ${task.policyNumber}` });
             }
             return next;
           });
@@ -98,9 +94,7 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'cancelled' });
-              toast.warning(`Correction cancelled`, {
-                description: task.policyNumber ? `${task.type} — ${task.policyNumber}` : task.type,
-              });
+              sileo.warning({ title: 'Correction cancelled', description: task.policyNumber ? `${task.type} — ${task.policyNumber}` : task.type });
             }
             return next;
           });
@@ -141,9 +135,7 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'completed' });
-              toast.success(`Policy push completed`, {
-                description: task.policyNumber,
-              });
+              sileo.success({ title: 'Policy push completed', description: task.policyNumber });
             }
             return next;
           });
@@ -155,9 +147,7 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'failed', error: ev.data?.error });
-              toast.error(`Policy push failed`, {
-                description: ev.data?.error || task.policyNumber,
-              });
+              sileo.error({ title: 'Policy push failed', description: ev.data?.error || task.policyNumber });
             }
             return next;
           });
@@ -169,23 +159,17 @@ export function useSSE() {
             const task = next.get(taskId);
             if (task) {
               next.set(taskId, { ...task, status: 'cancelled' });
-              toast.warning(`Policy push cancelled`, {
-                description: task.policyNumber,
-              });
+              sileo.warning({ title: 'Policy push cancelled', description: task.policyNumber });
             }
             return next;
           });
           addLog('x-circle', 'Policy push cancelled by user', time);
 
         } else if (ev.type === 'session:login_required') {
-          toast.warning('Login required', {
-            description: ev.data?.message || 'A session has expired. Please log in again.',
-          });
+          sileo.warning({ title: 'Login required', description: ev.data?.message || 'A session has expired. Please log in again.' });
 
         } else if (ev.type === 'session:login_failed') {
-          toast.error('Login failed', {
-            description: ev.data?.message || 'Session login failed. Please try again.',
-          });
+          sileo.error({ title: 'Login failed', description: ev.data?.message || 'Session login failed. Please try again.' });
 
         } else if (ev.type === 'session:status') {
           queryClient.invalidateQueries({ queryKey: ['status'] });

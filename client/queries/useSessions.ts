@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { sileo } from 'sileo';
 import * as api from '@/service/api';
 
 export function useStatus() {
@@ -16,12 +16,10 @@ export function useLoginAG() {
     mutationFn: api.loginAG,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status'] });
-      toast.success('A&G login initiated');
+      sileo.success({ title: 'A&G login initiated' });
     },
     onError: (error: Error) => {
-      toast.error('A&G login failed', {
-        description: error.message || 'Something went wrong',
-      });
+      sileo.error({ title: 'A&G login failed', description: error.message || 'Something went wrong' });
     },
   });
 }
@@ -32,14 +30,10 @@ export function useLoginNIID() {
     mutationFn: api.loginNIID,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status'] });
-      toast.success('NIID login popup opened', {
-        description: 'Complete login in the browser window',
-      });
+      sileo.success({ title: 'NIID login popup opened', description: 'Complete login in the browser window' });
     },
     onError: (error: Error) => {
-      toast.error('NIID login failed', {
-        description: error.message || 'Something went wrong',
-      });
+      sileo.error({ title: 'NIID login failed', description: error.message || 'Something went wrong' });
     },
   });
 }
@@ -50,14 +44,10 @@ export function useLoginNIIDPush() {
     mutationFn: api.loginNIIDPush,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status'] });
-      toast.success('NIID Push login popup opened', {
-        description: 'Complete login in the browser window',
-      });
+      sileo.success({ title: 'NIID Push login popup opened', description: 'Complete login in the browser window' });
     },
     onError: (error: Error) => {
-      toast.error('NIID Push login failed', {
-        description: error.message || 'Something went wrong',
-      });
+      sileo.error({ title: 'NIID Push login failed', description: error.message || 'Something went wrong' });
     },
   });
 }
@@ -68,14 +58,10 @@ export function useLoginNIIDAll() {
     mutationFn: api.loginNIIDAll,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status'] });
-      toast.success('Both NIID login popups opened', {
-        description: 'Complete login in both browser windows',
-      });
+      sileo.success({ title: 'Both NIID login popups opened', description: 'Complete login in both browser windows' });
     },
     onError: (error: Error) => {
-      toast.error('NIID login failed', {
-        description: error.message || 'Something went wrong',
-      });
+      sileo.error({ title: 'NIID login failed', description: error.message || 'Something went wrong' });
     },
   });
 }
@@ -84,12 +70,10 @@ export function useKeepAlive() {
   return useMutation({
     mutationFn: api.startKeepAlive,
     onSuccess: () => {
-      toast.success('Heartbeats started');
+      sileo.success({ title: 'Heartbeats started' });
     },
     onError: (error: Error) => {
-      toast.error('Failed to start heartbeats', {
-        description: error.message || 'Something went wrong',
-      });
+      sileo.error({ title: 'Failed to start heartbeats', description: error.message || 'Something went wrong' });
     },
   });
 }
