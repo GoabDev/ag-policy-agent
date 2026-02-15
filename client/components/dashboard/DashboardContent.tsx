@@ -20,7 +20,7 @@ export default function DashboardContent() {
   useEffect(() => {
     // Prefetch vehicle data on dashboard load so it's ready when user needs it
     queryClient.prefetchQuery({
-      queryKey: ['vehicle-data'],
+      queryKey: ["vehicle-data"],
       queryFn: getVehicleData,
     });
   }, [queryClient]);
@@ -35,7 +35,8 @@ export default function DashboardContent() {
             Google Chrome Required
           </AlertTitle>
           <AlertDescription className="text-blue-700/80 dark:text-blue-200/80">
-            This application uses Google Chrome to run automations. Please ensure Chrome is installed on your system.{" "}
+            This application uses Google Chrome to run automations. Please
+            ensure Chrome is installed on your system.{" "}
             <a
               href="https://www.google.com/chrome/"
               target="_blank"
@@ -53,10 +54,7 @@ export default function DashboardContent() {
             activeTasks={activeTasks}
             tasks={tasks}
           />
-          <PolicyPushForm
-            activeTasks={activeTasks}
-            tasks={tasks}
-          />
+          <PolicyPushForm activeTasks={activeTasks} tasks={tasks} />
         </div>
 
         <div className="mb-8">
@@ -69,7 +67,7 @@ export default function DashboardContent() {
         </div>
 
         <footer className="mt-16 text-center text-muted-foreground text-[10px] tracking-widest uppercase font-bold">
-          A&G Insurance — Policy Agent v1.0 • Built with Next.js & Shadcn/UI
+          A&G Insurance — Policy Agent v2.1
         </footer>
       </div>
     </div>

@@ -162,7 +162,7 @@ app.post("/api/corrections/:taskId/cancel", (req, res) => {
 // Get correction history
 app.get("/api/corrections/logs", (req, res) => {
   const history = getTaskHistory();
-  const fileLogs = loadTaskLogs();
+  const fileLogs = loadTaskLogs().filter((t) => t.correction); // Only correction logs
 
   // Merge in-memory and file-based logs (deduplicate by id)
   const seen = new Set(history.map((t) => t.id));
@@ -297,9 +297,19 @@ app.post("/api/policy-push/:taskId/cancel", (req, res) => {
 app.get("/api/policy-push/logs", (req, res) => {
   const running = getRunningPushTasks();
   const history = getPushTaskHistory();
+  const fileLogs = loadTaskLogs().filter((t) => t.input); // Only push logs
 
-  const seen = new Set(running.map((t) => t.id));
-  const merged = [...running, ...history.filter((t) => !seen.has(t.id))];
+  // Merge all sources, deduplicate by id (in-memory takes precedence)
+  const seen = new Set<string>();
+  const merged: any[] = [];
+  for (const list of [running, history, fileLogs]) {
+    for (const t of list) {
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        merged.push(t);
+      }
+    }
+  }
 
   res.json({ success: true, data: merged });
 });

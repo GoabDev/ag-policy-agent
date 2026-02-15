@@ -6,6 +6,7 @@ import { log, emitEvent } from '../utils/logger';
 
 // Shared browser instance
 let browser: Browser | null = null;
+let browserHeadless: boolean | null = null; // track the headless mode the browser was launched with
 
 // Contexts per site (each site gets its own isolated context)
 const contexts: Map<SiteName, BrowserContext> = new Map();
@@ -22,6 +23,12 @@ const lastWorkActivity: Map<SiteName, string> = new Map();
 // ============================================
 
 export async function launchBrowser(): Promise<Browser> {
+  // If the headless setting changed since last launch, close and relaunch
+  if (browser && browser.isConnected() && browserHeadless !== config.headless) {
+    log(`Headless setting changed (${browserHeadless} → ${config.headless}), relaunching browser...`);
+    await closeBrowser();
+  }
+
   if (browser && browser.isConnected()) return browser;
 
   log('Launching browser...');
@@ -34,8 +41,9 @@ export async function launchBrowser(): Promise<Browser> {
       '--disable-blink-features=AutomationControlled',
     ],
   });
+  browserHeadless = config.headless;
 
-  log('Browser launched successfully');
+  log(`Browser launched successfully (headless: ${config.headless})`);
   return browser;
 }
 
@@ -48,6 +56,7 @@ export async function closeBrowser() {
   if (browser) {
     await browser.close();
     browser = null;
+    browserHeadless = null;
   }
   log('Browser closed');
 }

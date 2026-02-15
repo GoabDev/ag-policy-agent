@@ -144,9 +144,7 @@ export default function SettingsPage() {
                 </div>
                 <Switch
                   checked={!form.headless}
-                  onCheckedChange={(checked) =>
-                    update({ headless: !checked })
-                  }
+                  onCheckedChange={(checked) => update({ headless: !checked })}
                 />
               </div>
 
@@ -442,7 +440,7 @@ export default function SettingsPage() {
         </div>
 
         <footer className="mt-16 text-center text-muted-foreground text-[10px] tracking-widest uppercase font-bold">
-          A&G Insurance — Policy Agent v1.0
+          A&G Insurance — Policy Agent v2.1
         </footer>
       </div>
     </div>

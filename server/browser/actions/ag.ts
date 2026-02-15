@@ -275,8 +275,14 @@ export async function correctVehicleMake(
   newModel: string,
 ): Promise<{ oldMake: string; oldModel: string }> {
   // Read old values before changing
-  const oldMake = await page.$eval(SELECTORS.policy.vehicleMakeField, (el) => (el as HTMLSelectElement).value);
-  const oldModel = await page.$eval(SELECTORS.policy.vehicleModelField, (el) => (el as HTMLSelectElement).value);
+  const oldMake = await page.$eval(
+    SELECTORS.policy.vehicleMakeField,
+    (el) => (el as HTMLSelectElement).value,
+  );
+  const oldModel = await page.$eval(
+    SELECTORS.policy.vehicleModelField,
+    (el) => (el as HTMLSelectElement).value,
+  );
   log(`Old vehicle: ${oldMake} ${oldModel}`);
   log(`Correcting vehicle make to: ${newMake} and model to: ${newModel}`);
 
@@ -321,7 +327,9 @@ export async function correctRegandChasis(
 ): Promise<{ oldRegNumber: string; oldChassisNumber: string }> {
   // Read OLD values before overwriting
   const oldRegNumber = await page.inputValue(SELECTORS.policy.regNumberField);
-  const oldChassisNumber = await page.inputValue(SELECTORS.policy.chassisNumberField);
+  const oldChassisNumber = await page.inputValue(
+    SELECTORS.policy.chassisNumberField,
+  );
   log(`Old registration number: ${oldRegNumber}`);
   log(`Old chassis number: ${oldChassisNumber}`);
 
@@ -368,7 +376,9 @@ export async function correctChassis(
   newChassisNumber: string,
 ): Promise<string> {
   // Read old chassis before overwriting
-  const oldChassisNumber = await page.inputValue(SELECTORS.policy.chassisNumberField);
+  const oldChassisNumber = await page.inputValue(
+    SELECTORS.policy.chassisNumberField,
+  );
   log(`Old chassis number: ${oldChassisNumber}`);
   log(`Correcting chassis to: ${newChassisNumber}`);
 
@@ -624,7 +634,9 @@ export async function fetchVehicleData(
   log(`Found ${makes.length} vehicle makes`);
 
   if (makes.length === 0) {
-    throw new Error("No vehicle makes found on the page. Session may be invalid.");
+    throw new Error(
+      "No vehicle makes found on the page. Session may be invalid.",
+    );
   }
 
   // Save makes immediately so frontend can use them
@@ -715,7 +727,11 @@ async function fetchModelsInBackground(
   };
   saveCachedVehicleData(data);
 
-  modelFetchStatus = { inProgress: false, processed: makes.length, total: makes.length };
+  modelFetchStatus = {
+    inProgress: false,
+    processed: makes.length,
+    total: makes.length,
+  };
   log(
     `Vehicle data complete: ${makes.length} makes, ${Object.values(models).reduce((s, m) => s + m.length, 0)} total models`,
   );

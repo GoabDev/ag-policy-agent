@@ -158,11 +158,21 @@ export async function runPolicyPush(
     checkCancelled(signal);
 
     // Step 5: Upload processed file to NIID
-    await uploadPolicyFile(niidPage, processedFilePath);
-    addStep(
-      task,
-      createStep("niid_push", "Policy file uploaded to NIID", "success")
-    );
+    const uploadResult = await uploadPolicyFile(niidPage, processedFilePath);
+    task.uploadResult = uploadResult.resultText;
+    task.uploadHasResults = uploadResult.hasResults;
+
+    if (uploadResult.hasResults) {
+      addStep(
+        task,
+        createStep("niid_push", "Policy file uploaded to NIID", "success", uploadResult.resultText)
+      );
+    } else {
+      addStep(
+        task,
+        createStep("niid_push", "Upload completed but NIID returned no result", "failed", uploadResult.resultText)
+      );
+    }
 
     // Step 6: Clean up temp files
     try {

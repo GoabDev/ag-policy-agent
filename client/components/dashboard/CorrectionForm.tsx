@@ -27,6 +27,12 @@ export function CorrectionForm({
   const runMutation = useRunCorrection();
   const cancelMutation = useCancelCorrection();
 
+  // Filter to only correction tasks (exclude push tasks)
+  const correctionActiveTasks = activeTasks.filter((t) => t.type !== 'policy_push');
+  const correctionTasks = new Map(
+    Array.from(tasks.entries()).filter(([, t]) => t.type !== 'policy_push')
+  );
+
   const {
     register,
     handleSubmit,
@@ -88,10 +94,10 @@ export function CorrectionForm({
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <Send className="w-4 h-4 text-muted-foreground" />
           New Correction
-          {activeTasks.length > 0 && (
+          {correctionActiveTasks.length > 0 && (
             <Badge className="ml-auto bg-primary/10 text-primary text-[10px]">
               <Layers className="w-3 h-3 mr-1" />
-              {activeTasks.length} running
+              {correctionActiveTasks.length} running
             </Badge>
           )}
         </CardTitle>
@@ -291,12 +297,12 @@ export function CorrectionForm({
         </form>
 
         {/* Active Tasks Progress */}
-        {activeTasks.length > 0 && (
+        {correctionActiveTasks.length > 0 && (
           <div className="mt-8 space-y-4 pt-6 border-t border-border/50">
             <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              Active Tasks ({activeTasks.length})
+              Active Tasks ({correctionActiveTasks.length})
             </h4>
-            {activeTasks.map((task) => (
+            {correctionActiveTasks.map((task) => (
               <div key={task.id} className="rounded-lg border border-border p-3 space-y-2">
                 <div className="flex items-center gap-2 text-xs">
                   <RefreshCw className="w-3 h-3 animate-spin text-primary" />
@@ -339,9 +345,9 @@ export function CorrectionForm({
         )}
 
         {/* Recently completed/failed tasks */}
-        {Array.from(tasks.values()).filter(t => t.status !== 'running').length > 0 && (
+        {Array.from(correctionTasks.values()).filter(t => t.status !== 'running').length > 0 && (
           <div className="mt-4 space-y-2">
-            {Array.from(tasks.values()).filter(t => t.status !== 'running').map((task) => (
+            {Array.from(correctionTasks.values()).filter(t => t.status !== 'running').map((task) => (
               <div key={task.id} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
                 task.status === 'completed' ? 'bg-emerald-500/5 text-emerald-600 dark:text-emerald-300' :
                 task.status === 'cancelled' ? 'bg-amber-500/5 text-amber-600 dark:text-amber-300' :

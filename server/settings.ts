@@ -1,6 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { config } from "./config";
+import { closeBrowser } from "./browser/controller";
+import { destroyAllWorkers } from "./browser/workerPool";
+import { stopAllHeartbeats, startAllHeartbeats } from "./browser/keepAlive";
+import { log } from "./utils/logger";
 import { UserSettings } from "./types";
 
 const SETTINGS_FILE = path.join(config.storagePath, "settings.json");
@@ -37,6 +41,7 @@ export function getSettings(): UserSettings {
 }
 
 export function saveSettings(partial: Partial<UserSettings>): UserSettings {
+  const oldHeadless = currentSettings.headless;
   currentSettings = { ...currentSettings, ...partial };
 
   // Ensure storage dir exists
@@ -45,6 +50,21 @@ export function saveSettings(partial: Partial<UserSettings>): UserSettings {
 
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(currentSettings, null, 2));
   applyToConfig();
+
+  // If headless mode changed, close the browser so it relaunches with the new setting.
+  // getPage() caches pages and won't call launchBrowser() again otherwise.
+  if (partial.headless !== undefined && partial.headless !== oldHeadless) {
+    log(`Headless changed (${oldHeadless} → ${partial.headless}), restarting browser...`);
+    stopAllHeartbeats();
+    destroyAllWorkers()
+      .then(() => closeBrowser())
+      .then(() => {
+        log(`Browser closed — will relaunch as headless=${partial.headless} on next use`);
+        startAllHeartbeats();
+      })
+      .catch(() => {});
+  }
+
   return currentSettings;
 }
 

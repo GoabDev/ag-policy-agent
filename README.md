@@ -15,7 +15,7 @@ Automate corrections across both A&G and NIID platforms in a single action:
 
 - **Name Correction** — Update policyholder first name and/or last name
 - **Registration Correction** — Update vehicle registration number
-- **Vehicle Make Correction** — Update vehicle make and model
+- **Vehicle Make Correction** — Update vehicle make and model (with searchable combobox for vehicle data)
 - **Registration & Chassis Correction** — Update both registration and chassis numbers together
 - **Chassis Correction** — Update chassis number only
 
@@ -33,13 +33,15 @@ The system automatically downloads XLSX files from A&G Spool, processes them, an
 - Independent browser sessions for A&G, NIID Corrections, and NIID Push
 - Manual login support for NIID (handles CAPTCHA)
 - Auto-login for A&G platform
-- Session keep-alive with periodic heartbeat pings
+- Session keep-alive with configurable heartbeat intervals (separate intervals for A&G and NIID)
+- Automatic session inactivity timeout — idle sessions are killed after a configurable period
 - Visual login status indicators
 
 ### Real-Time Monitoring
 
 - Live activity feed showing all system events as they happen
-- Correction history table with color-coded status indicators (pending, running, completed, failed)
+- Toast notifications for task success, failure, and warning events
+- Correction history table with color-coded status indicators (pending, running, completed, failed, cancelled)
 - Worker pool status display (active workers, queue length)
 - Step-by-step task progress streaming via SSE
 
@@ -48,6 +50,15 @@ The system automatically downloads XLSX files from A&G Spool, processes them, an
 - Concurrent task execution with multiple Playwright browser workers
 - Configurable max workers for parallel processing
 - Automatic worker queue management
+
+### Settings
+
+- **Headless mode** — Toggle browser visibility for debugging
+- **Log retention** — Configurable log cleanup with automatic scheduled cleanup
+- **Session timeout** — Set inactivity timeout for auto-killing idle sessions
+- **Max workers** — Configure the number of concurrent browser workers
+- **Keep-alive intervals** — Separate configurable intervals for A&G and NIID sessions
+- **Notification preferences** — Choose between all, errors only, or no notifications
 
 ### Dark/Light Theme
 
@@ -181,6 +192,7 @@ ag-policy-agent/
 │   ├── agents/              # Task runners (corrections, policy push)
 │   ├── browser/             # Playwright automation & worker pool
 │   ├── config/              # Environment configuration
+│   ├── jobs/                # Scheduled jobs (log cleanup)
 │   ├── types/               # TypeScript interfaces
 │   └── utils/               # Logger, XLSX processor
 ├── electron/                # Electron main process
@@ -194,16 +206,58 @@ ag-policy-agent/
 
 ## Changelog
 
+### v2.1.0 — History Redesign, Upload Results & Headless Toggle
+
+#### New Features
+
+- **Tabbed History Table** — Corrections and Push history displayed in separate tabs for clearer navigation
+- **Detail Dialogs** — Click any history row to view full details including steps, field changes, and errors
+- **Copy Buttons** — One-click copy for policy numbers, error messages, and upload results
+- **NIID Upload Result Tracking** — Captures and displays actual upload result text from NIID after policy push
+- **Upload Progress Events** — Real-time `push:uploading` SSE events with elapsed time during NIID uploads
+- **Headless Mode Runtime Toggle** — Changing headless mode in settings automatically relaunches the browser without restarting the app
+- **Push History Persistence** — Push task logs now persisted to disk and merged across restarts
+
+#### Improvements
+
+- **A&G Spool Download Rewrite** — New popup-tab-based download flow with updated selectors matching the current A&G Spool page
+- **NIID Upload Flow Rewrite** — Handles Telerik RadUploadProgressArea, loading states, result panel parsing, and 5-minute timeout with periodic progress events
+- **Task Filtering** — Correction form only shows correction tasks; push tasks are separated into their own view
+- **Correction Logs API** — `/api/corrections/logs` now returns only correction-type logs; push logs served separately
+- **Session Control Layout** — Simplified from 4-column to 3-column grid
+
+### v2.0.0 — Settings, Policy Push & Enhanced Sessions
+
+#### New Features
+
+- **Settings page** — Dedicated settings UI to configure headless mode, log retention, session timeout, max workers, keep-alive intervals, and notification preferences
+- **Policy Push system** — Upload policies from A&G Spool to NIID by policy number or date range, with automatic XLSX download and processing
+- **Chassis correction** — New standalone chassis number correction type
+- **Registration & Chassis correction** — New combined registration and chassis correction type
+- **Vehicle data combobox** — Searchable dropdown for vehicle make/model selection
+- **Toast notifications** — Real-time toast notifications (via Sonner) for task success, failure, and warning events
+- **Cancelled task status** — Tasks can now be cancelled, with proper status tracking
+
+#### Improvements
+
+- **Separate NIID Push session** — Independent browser session with alternate credentials for policy uploads
+- **Configurable keep-alive intervals** — Separate intervals for A&G and NIID sessions
+- **Session inactivity timeout** — Automatically kill idle sessions after a configurable period
+- **Automatic log cleanup** — Scheduled job to clean up old log files based on retention settings
+- **Electron production paths** — Proper resource path resolution for Electron production builds
+- **Dynamic port allocation** — Server supports port 0 for automatic port assignment
+- **Enhanced SSE events** — New event types for push tasks, cancellation, login prompts, and login failures
+- **Worker pool improvements** — Better queue management and status reporting
+
 ### v1.0.1 — Toast Notifications
+
 - Add toast notifications for success, error, and warning events
 
 ### v1.0.0 — Initial Release
 
-- Policy corrections: name, registration, vehicle make, chassis, registration & chassis
-- Policy push by policy number and date range
-- Session management with keep-alive for A&G, NIID, and NIID Push
+- Policy corrections: name, registration, vehicle make
+- Session management with keep-alive for A&G and NIID
 - Real-time live activity feed with SSE
-- Worker pool for concurrent task execution
 - Dark/light theme support
 - Windows installer with auto-update support
 

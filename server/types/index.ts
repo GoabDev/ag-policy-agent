@@ -144,6 +144,7 @@ export type SSEEventType =
   | "push:step"
   | "push:completed"
   | "push:failed"
+  | "push:uploading"
   | "task:cancelled"
   | "push:cancelled"
   | "session:status"
@@ -194,6 +195,8 @@ export interface PolicyPushTask {
   completedAt?: string;
   error?: string;
   downloadedFile?: string;
+  uploadResult?: string;
+  uploadHasResults?: boolean;
 }
 
 // ============================================

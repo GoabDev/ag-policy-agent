@@ -13,23 +13,19 @@ import { log } from "../../../utils/logger";
 // Using best-guess selectors based on ASP.NET patterns from the site.
 const SPOOL_SELECTORS = {
   // Search options
-  searchOptionDropdown: 'internal:label="Select Search Option"i',
-  policyNumberField: 'internal:role=textbox[name="Policy Number"i]',
-  fromDateField: 'internal:role=textbox[name="From"i]',
+  searchOptionDropdown: 'internal:label="Select Option"i',
+  policyNumberField: 'internal:role=textbox[name="Policy No"i]',
+  fromDateField: 'input[name="txtDate1"]',
   toDateField: 'internal:role=textbox[name="To"i]',
-  searchButton: 'internal:role=button[name="Search"i]',
-  downloadButton: 'internal:role=button[name="Download"i]',
-
-  // Loading overlay (same as other AG pages)
-  loadingOverlay: "#UpdateProgress2",
+  // The spool button acts as both search and download trigger
+  searchButton: 'internal:role=button[name="Spool"i]',
 
   // Results / feedback
   resultGrid: 'table[id*="GridView"]',
   noRecordsMessage: 'internal:text="No Record Found"i',
 
-  // Confirmation dialog
-  confirmationPanel: 'internal:role=dialog[name="A&G: Application Message"i]',
-  closeButton: 'internal:role=button[name="Close"i]',
+  // Error message (inline text on the page)
+  errorMessage: 'internal:text="There is no record for the"i',
 };
 
 // Download directory
@@ -100,7 +96,7 @@ export async function downloadByPolicyNumber(
   // Select "Fetch by Policy No" option
   await page.selectOption(
     SPOOL_SELECTORS.searchOptionDropdown,
-    "Fetch by Policy No",
+    "Filter by PolicyNo",
   );
 
   // Fill policy number
@@ -124,7 +120,7 @@ export async function downloadByDateRange(
   // Select date range option
   await page.selectOption(
     SPOOL_SELECTORS.searchOptionDropdown,
-    "Fetch by Date Range",
+    "Filter by Date Range",
   );
 
   // Fill date fields (format: DD-MMM-YYYY e.g. "01-Feb-2026")
@@ -140,43 +136,87 @@ export async function downloadByDateRange(
 // ============================================
 
 async function triggerSearchAndDownload(page: Page): Promise<string> {
-  // Click search button
+  ensureDownloadsDir();
+  const browserContext = page.context();
+
+  // Flow: click spool → loading happens → new tab opens → tab auto-closes →
+  //       download arrives. We skip waiting for the overlay and instead race
+  //       between an error appearing and the download completing.
+
+  // Set up listeners before clicking so we don't miss events
+  const downloadFromOriginal = page
+    .waitForEvent("download", { timeout: 90000 })
+    .catch(() => null);
+
+  const popupPromise = browserContext
+    .waitForEvent("page", { timeout: 90000 })
+    .catch(() => null);
+
+  // Click the spool button
   await page.click(SPOOL_SELECTORS.searchButton);
 
-  // Wait for loading overlay to disappear
-  await waitForOverlayToDisappear(page, "spoolSearch");
+  // Race: either an error shows up quickly, or a popup opens for the download
+  const errorPromise = checkForErrors(page, 5000);
 
-  // Check for "No Record Found" message
+  const outcome = await Promise.race([
+    errorPromise.then(() => "no-error" as const),
+    popupPromise.then((p) => ({ popup: p }) as { popup: Page | null }),
+  ]);
+
+  // If checkForErrors found an error it would have thrown, so we only
+  // reach here if no error was found or a popup appeared first.
+
+  if (typeof outcome === "object" && outcome.popup) {
+    const popupPage = outcome.popup;
+    log("New tab opened for download, waiting for it to close...");
+
+    // Listen for download on the popup page too
+    const downloadFromPopup = popupPage
+      .waitForEvent("download", { timeout: 60000 })
+      .catch(() => null);
+
+    // Wait for popup to auto-close
+    await popupPage.waitForEvent("close", { timeout: 60000 }).catch(() => {});
+    log("Popup tab closed, waiting for download...");
+
+    const download = (await downloadFromPopup) ?? (await downloadFromOriginal);
+    if (download) {
+      return await saveDownload(download);
+    }
+  } else {
+    // No popup — download may have come directly on the original page
+    const download = await downloadFromOriginal;
+    if (download) {
+      return await saveDownload(download);
+    }
+  }
+
+  throw new Error("Download did not complete — no file was received");
+}
+
+// ============================================
+// Check for inline errors on the page
+// ============================================
+
+async function checkForErrors(page: Page, timeout = 3000): Promise<boolean> {
   const noRecords = await page
-    .waitForSelector(SPOOL_SELECTORS.noRecordsMessage, { timeout: 3000 })
+    .waitForSelector(SPOOL_SELECTORS.noRecordsMessage, { timeout })
     .catch(() => null);
 
   if (noRecords) {
     throw new Error("No records found for the given search criteria");
   }
 
-  // Check for error dialog
-  const errorDialog = await page
-    .waitForSelector(SPOOL_SELECTORS.confirmationPanel, { timeout: 3000 })
+  const errorEl = await page
+    .waitForSelector(SPOOL_SELECTORS.errorMessage, { timeout })
     .catch(() => null);
 
-  if (errorDialog) {
-    const errorText = await errorDialog
-      .textContent()
-      .catch(() => "Unknown error");
-    await page.click(SPOOL_SELECTORS.closeButton).catch(() => {});
+  if (errorEl) {
+    const errorText = await errorEl.textContent().catch(() => "Unknown error");
     throw new Error(`A&G error: ${errorText?.trim()}`);
   }
 
-  // Now click download and capture the file
-  ensureDownloadsDir();
-
-  const [download] = await Promise.all([
-    page.waitForEvent("download", { timeout: 60000 }),
-    page.click(SPOOL_SELECTORS.downloadButton),
-  ]);
-
-  return await saveDownload(download);
+  return false;
 }
 
 // ============================================
@@ -193,40 +233,4 @@ async function saveDownload(download: Download): Promise<string> {
   log(`File downloaded: ${filePath}`);
 
   return filePath;
-}
-
-// ============================================
-// Helper — wait for loading overlay to disappear
-// ============================================
-
-async function waitForOverlayToDisappear(
-  page: Page,
-  context: string,
-): Promise<void> {
-  const start = Date.now();
-
-  try {
-    await page.waitForFunction(
-      (selector) => {
-        const el = document.querySelector(selector);
-        if (!el) return false;
-        const style = (el as HTMLElement).style.display;
-        if (style !== "none") {
-          (el as any).__overlayAppeared = true;
-        }
-        return (el as any).__overlayAppeared && style === "none";
-      },
-      SPOOL_SELECTORS.loadingOverlay,
-      { timeout: 30000, polling: 100 },
-    );
-  } catch {
-    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    log(
-      `Loading overlay did not disappear after ${elapsed}s during: ${context}`,
-      "error",
-    );
-    throw new Error(
-      `Loading overlay timed out after ${elapsed}s during: ${context}`,
-    );
-  }
 }
