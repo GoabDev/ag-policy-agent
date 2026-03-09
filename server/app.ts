@@ -460,6 +460,16 @@ loadSettings();
 // Start periodic log cleanup
 startLogCleanup();
 
+process.on("unhandledRejection", (reason) => {
+  const message =
+    reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason);
+  log(`Unhandled promise rejection: ${message}`, "error");
+});
+
+process.on("uncaughtException", (err) => {
+  log(`Uncaught exception: ${err.message}`, "error");
+});
+
 // ============================================
 // Start Server
 // ============================================
@@ -478,7 +488,13 @@ const server = app.listen(config.port, () => {
   `);
 
   // Start heartbeats for any existing sessions
-  startAllHeartbeats();
+  setTimeout(() => {
+    try {
+      startAllHeartbeats();
+    } catch (err: any) {
+      log(`Failed to start saved-session heartbeats: ${err.message}`, "error");
+    }
+  }, 0);
 });
 
 // Graceful shutdown

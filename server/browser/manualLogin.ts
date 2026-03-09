@@ -4,43 +4,42 @@ import { log, emitEvent } from "../utils/logger";
 import fs from "fs";
 import path from "path";
 import { SiteName } from "../types";
+import { markSessionActive } from "./controller";
 
-// Track which sites have a login popup open (allows concurrent logins for different sites)
 const loginsInProgress: Set<SiteName> = new Set();
 
-/**
- * Opens a temporary headed browser for manual login (CAPTCHA, etc.).
- * The server's headless browser is unaffected — this spawns a separate
- * visible window, waits for the user to log in, saves the session, and closes.
- *
- * Returns true if login succeeded, false if it timed out or failed.
- */
 export async function openLoginPopup(site: SiteName): Promise<boolean> {
   if (loginsInProgress.has(site)) {
-    log(`Manual login popup already open for ${site.toUpperCase()}, skipping duplicate`, "warn");
+    log(
+      `Manual login popup already open for ${site.toUpperCase()}, skipping duplicate`,
+      "warn",
+    );
     return false;
   }
 
   loginsInProgress.add(site);
-  const siteConfig = (site === "ag" || site === "ag_push") ? config.ag : site === "niid_push" ? config.niidPush : config.niid;
+  const siteConfig =
+    site === "ag" || site === "ag_push"
+      ? config.ag
+      : site === "niid_push"
+        ? config.niidPush
+        : config.niid;
   const sessionPath = siteConfig.sessionPath;
 
   log(`Opening manual login popup for ${site.toUpperCase()}...`);
   emitEvent("session:login_required", {
     site,
-    message:
-      "Manual login window opened — please complete login in the browser popup.",
+    message: "Manual login window opened - please complete login in the browser popup.",
   });
 
   let browser;
   try {
-    browser = await chromium.launch({ headless: false, channel: 'chrome' });
+    browser = await chromium.launch({ headless: false, channel: "chrome" });
     const context = await browser.newContext();
     const page = await context.newPage();
 
     await page.goto(siteConfig.url);
 
-    // Pre-fill credentials if available
     if (siteConfig.username && siteConfig.password) {
       try {
         const usernameSelectors = [
@@ -83,51 +82,57 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
       }
     }
 
-    // Wait up to 5 minutes for the user to complete login
     try {
       await page.waitForFunction(
         () => {
-          const hasLogout = document.querySelector(
-            'internal:role=button[name="Logout"i]',
+          const url = window.location.href.toLowerCase();
+          return (
+            url.includes("home.aspx") ||
+            url.includes("change_request.aspx") ||
+            url.includes("upload_policy.aspx")
           );
-          const hasDashboard = document.querySelector(
-            'internal:role=cell[name="Home My Account Logout Help"i]',
-          );
-          return hasLogout !== null || hasDashboard !== null;
         },
         { timeout: 300000 },
       );
     } catch {
-      // Auto-detection failed — wait for the page to navigate away from login
       log("Auto-detect failed, waiting for URL change as fallback...", "warn");
       try {
-        await page.waitForURL("https://niid.org/App_Messages/Home.aspx", {
-          timeout: 300000,
-        });
+        await page.waitForURL(
+          (url) => {
+            const value = url.toString().toLowerCase();
+            return (
+              value.includes("home.aspx") ||
+              value.includes("change_request.aspx") ||
+              value.includes("upload_policy.aspx")
+            );
+          },
+          { timeout: 300000 },
+        );
       } catch {
         log("Manual login timed out", "error");
-        emitEvent("session:login_failed", { site, reason: "timeout" });
+        emitEvent("session:login_failed", {
+          site,
+          message: `${site.toUpperCase()} login timed out. Please try again.`,
+        });
         return false;
       }
     }
 
-    // Save session
     const dir = path.dirname(sessionPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     await context.storageState({ path: sessionPath });
-    log(`Manual login successful — session saved for ${site.toUpperCase()}`);
-    emitEvent("session:status", {
-      site,
-      isActive: true,
-      lastActivity: new Date().toISOString(),
-    });
+    markSessionActive(site);
+    log(`Manual login successful - session saved for ${site.toUpperCase()}`);
 
     await browser.close();
     return true;
   } catch (err: any) {
     log(`Manual login failed: ${err.message}`, "error");
-    emitEvent("session:login_failed", { site, reason: err.message });
+    emitEvent("session:login_failed", {
+      site,
+      message: `${site.toUpperCase()} login failed: ${err.message}`,
+    });
     if (browser) await browser.close().catch(() => {});
     return false;
   } finally {
@@ -135,10 +140,6 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
   }
 }
 
-/**
- * CLI entry point — run directly with:
- *   npx ts-node src/browser/manualLogin.ts <ag|niid>
- */
 if (require.main === module) {
   const site = process.argv[2] as SiteName;
 

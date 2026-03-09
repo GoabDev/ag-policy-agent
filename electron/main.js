@@ -84,6 +84,27 @@ function startServer() {
     }
 
     let started = false;
+    let settled = false;
+    const startTimeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error("Server start timeout (15s)"));
+      }
+    }, 15000);
+
+    function resolveOnce(value) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(startTimeout);
+      resolve(value);
+    }
+
+    function rejectOnce(error) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(startTimeout);
+      reject(error);
+    }
 
     serverProcess.stdout.on("data", (data) => {
       const output = data.toString();
@@ -93,7 +114,7 @@ function startServer() {
       if (match && !started) {
         started = true;
         serverPort = match[1];
-        resolve(serverPort);
+        resolveOnce(serverPort);
       }
     });
 
@@ -104,13 +125,9 @@ function startServer() {
     serverProcess.on("exit", (code) => {
       console.log(`[server] Process exited with code ${code}`);
       if (!started) {
-        reject(new Error(`Server exited before starting (code ${code})`));
+        rejectOnce(new Error(`Server exited before starting (code ${code})`));
       }
     });
-
-    setTimeout(() => {
-      if (!started) reject(new Error("Server start timeout (15s)"));
-    }, 15000);
   });
 }
 

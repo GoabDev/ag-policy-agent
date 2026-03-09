@@ -16,6 +16,21 @@ export function useSSE() {
   const [logs, setLogs] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map());
 
+  const getSessionLabel = useCallback((site?: string) => {
+    switch (site) {
+      case 'ag':
+        return 'A&G session';
+      case 'ag_push':
+        return 'A&G Push session';
+      case 'niid':
+        return 'NIID session';
+      case 'niid_push':
+        return 'NIID Push session';
+      default:
+        return 'Session';
+    }
+  }, []);
+
   const addLog = useCallback((icon: string, msg: string, time: string = new Date().toLocaleTimeString()) => {
     setLogs((prev) => [...prev.slice(-99), { icon, msg, time, id: Date.now() + Math.random() }]);
   }, []);
@@ -166,10 +181,16 @@ export function useSSE() {
           addLog('x-circle', 'Policy push cancelled by user', time);
 
         } else if (ev.type === 'session:login_required') {
-          sileo.warning({ title: 'Login required', description: ev.data?.message || 'A session has expired. Please log in again.' });
+          sileo.warning({
+            title: `${getSessionLabel(ev.data?.site)} login required`,
+            description: ev.data?.message || 'A session has expired. Please log in again.',
+          });
 
         } else if (ev.type === 'session:login_failed') {
-          sileo.error({ title: 'Login failed', description: ev.data?.message || 'Session login failed. Please try again.' });
+          sileo.error({
+            title: `${getSessionLabel(ev.data?.site)} failed`,
+            description: ev.data?.message || 'Session login failed. Please try again.',
+          });
 
         } else if (ev.type === 'session:status') {
           queryClient.invalidateQueries({ queryKey: ['status'] });
@@ -191,7 +212,7 @@ export function useSSE() {
     return () => {
       if (sse) sse.close();
     };
-  }, [addLog, queryClient]);
+  }, [addLog, getSessionLabel, queryClient]);
 
   // Clean up completed/failed tasks after 30 seconds
   useEffect(() => {

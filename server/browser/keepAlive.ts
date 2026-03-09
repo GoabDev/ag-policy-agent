@@ -14,11 +14,14 @@ import { log, emitEvent } from "../utils/logger";
 import { SiteName } from "../types";
 
 let heartbeatTimers: Map<SiteName, NodeJS.Timeout> = new Map();
+const heartbeatInFlight: Map<SiteName, Promise<void>> = new Map();
+const heartbeatFailureCounts: Map<SiteName, number> = new Map();
+const MAX_HEARTBEAT_FAILURES = 3;
 
 // Kill sessions after this many ms of inactivity (default: 5 hours)
 const SESSION_INACTIVITY_TIMEOUT = config.sessionInactivityTimeout;
 
-// Pages we stay parked on — where the automation work happens
+// Pages we stay parked on - where the automation work happens
 const PARK_PAGES: Record<SiteName, string> = {
   ag: "https://aginsuranceapplications.com/card/Policy/Policy_Update.aspx",
   niid: "https://niid.org/App_ADM_Module/Change_Request.aspx",
@@ -29,15 +32,11 @@ const PARK_PAGES: Record<SiteName, string> = {
 
 // URLs that indicate expired sessions
 const SESSION_EXPIRED_INDICATORS: Record<SiteName, string> = {
-  ag: "ErrorPage.aspx", // Redirects to ErrorPage.aspx?Error=Sorry%20Your%20Session%20has%20Expired
-  ag_push: "ErrorPage.aspx", // Redirects to ErrorPage.aspx?Error=Sorry%20Your%20Session%20has%20Expired
-  niid: "/default.aspx", // Redirects back to login page
-  niid_push: "/default.aspx", // Same login redirect as niid
+  ag: "ErrorPage.aspx",
+  ag_push: "ErrorPage.aspx",
+  niid: "/default.aspx",
+  niid_push: "/default.aspx",
 };
-
-// ============================================
-// Session expiry detection & recovery
-// ============================================
 
 function isSessionExpired(site: SiteName, url: string): boolean {
   return url.includes(SESSION_EXPIRED_INDICATORS[site]);
@@ -48,7 +47,6 @@ async function handleExpiredSession(site: SiteName, page: Page) {
     log(`Session expired for AG, attempting re-login...`, "warn");
     await loginToAG();
 
-    // Re-navigate both AG pages to their park pages
     await page.goto(PARK_PAGES["ag"], {
       waitUntil: "domcontentloaded",
       timeout: 30000,
@@ -61,12 +59,13 @@ async function handleExpiredSession(site: SiteName, page: Page) {
 
     await saveSession("ag");
     touchSession("ag");
-    log(`AG session recovered — both pages back on park pages`);
+    heartbeatFailureCounts.set("ag", 0);
+    log(`AG session recovered - both pages back on park pages`);
     emitEvent("keepalive:ping", { site: "ag", status: "recovered" });
   } else if (site === "niid" || site === "niid_push") {
     const label = site === "niid_push" ? "NIID Push" : "NIID";
     log(
-      `Session expired for ${label} — opening manual login popup (CAPTCHA)`,
+      `Session expired for ${label} - opening manual login popup (CAPTCHA)`,
       "warn",
     );
     stopHeartbeat(site);
@@ -76,23 +75,21 @@ async function handleExpiredSession(site: SiteName, page: Page) {
       reason: "session_expired",
     });
 
-    // Clear stale session so the server picks up the fresh one after login
     await clearSession(site);
 
-    // Spawn a headed popup for the user to log in
     const success = await openLoginPopup(site);
     if (success) {
       log(`${label} session restored via manual login, restarting heartbeat`);
       startHeartbeat(site);
     } else {
       log(`${label} manual login failed or timed out`, "error");
+      emitEvent("session:login_failed", {
+        site,
+        message: `${label} session expired and could not be restored. Please log in manually.`,
+      });
     }
   }
 }
-
-// ============================================
-// Heartbeat: Keeps sessions alive
-// ============================================x
 
 async function sendHeartbeatForPage(site: SiteName) {
   const page = await getPage(site);
@@ -137,21 +134,17 @@ async function sendHeartbeat(site: SiteName) {
   const status = getSessionStatus(site);
 
   if (!status.isActive) {
-    log(
-      `Skipping heartbeat for ${site.toUpperCase()} — no active session`,
-      "warn",
-    );
+    log(`Skipping heartbeat for ${site.toUpperCase()} - no active session`, "warn");
     return;
   }
 
-  // Auto-kill session after prolonged inactivity (based on last real work, not heartbeat pings)
   const lastWork = getLastWorkActivity(site) || status.lastActivity;
   if (lastWork) {
     const idleMs = Date.now() - new Date(lastWork).getTime();
     if (idleMs > SESSION_INACTIVITY_TIMEOUT) {
       const idleHours = (idleMs / 3600000).toFixed(1);
       log(
-        `Session ${site.toUpperCase()} idle for ${idleHours}h — auto-killing to avoid unnecessary traffic`,
+        `Session ${site.toUpperCase()} idle for ${idleHours}h - auto-killing to avoid unnecessary traffic`,
         "warn",
       );
       stopHeartbeat(site);
@@ -166,8 +159,8 @@ async function sendHeartbeat(site: SiteName) {
   }
 
   try {
-    // For AG, heartbeat both the ag page and the ag_push page (shared session)
-    const pagesToRefresh: SiteName[] = site === "ag" ? ["ag", "ag_push"] : [site];
+    const pagesToRefresh: SiteName[] =
+      site === "ag" ? ["ag", "ag_push"] : [site];
     const page = await getPage(site);
 
     for (const pageSite of pagesToRefresh) {
@@ -180,37 +173,87 @@ async function sendHeartbeat(site: SiteName) {
 
     await saveSession(site);
     touchSession(site);
+    heartbeatFailureCounts.set(site, 0);
 
-    log(`Heartbeat OK — ${site.toUpperCase()}`);
+    log(`Heartbeat OK - ${site.toUpperCase()}`);
     emitEvent("keepalive:ping", { site, status: "ok" });
   } catch (err: any) {
-    log(`Heartbeat FAILED — ${site.toUpperCase()}: ${err.message}`, "error");
-    emitEvent("keepalive:ping", { site, status: "failed", error: err.message });
+    const failures = (heartbeatFailureCounts.get(site) || 0) + 1;
+    heartbeatFailureCounts.set(site, failures);
+
+    log(`Heartbeat FAILED - ${site.toUpperCase()}: ${err.message}`, "error");
+    emitEvent("keepalive:ping", {
+      site,
+      status: "failed",
+      error: err.message,
+    });
+
+    if (failures >= MAX_HEARTBEAT_FAILURES) {
+      const label =
+        site === "ag"
+          ? "A&G"
+          : site === "ag_push"
+            ? "A&G Push"
+            : site === "niid_push"
+              ? "NIID Push"
+              : "NIID";
+
+      log(
+        `${label} session failed ${failures} consecutive heartbeat checks - clearing saved session`,
+        "warn",
+      );
+      stopHeartbeat(site);
+      await clearSession(site);
+      heartbeatFailureCounts.set(site, 0);
+
+      emitEvent("session:login_failed", {
+        site,
+        message: `${label} saved session could not be restored. Please log in manually.`,
+      });
+    }
   }
 }
 
-// ============================================
-// Start / Stop Heartbeats
-// ============================================
+function runHeartbeatSafely(site: SiteName) {
+  if (heartbeatInFlight.has(site)) {
+    log(`Skipping overlapping heartbeat for ${site.toUpperCase()}`, "warn");
+    return;
+  }
+
+  const run = sendHeartbeat(site)
+    .catch((err: any) => {
+      log(
+        `Unhandled heartbeat failure for ${site.toUpperCase()}: ${err?.message || String(err)}`,
+        "error",
+      );
+      emitEvent("keepalive:ping", {
+        site,
+        status: "failed",
+        error: err?.message || String(err),
+      });
+    })
+    .finally(() => {
+      heartbeatInFlight.delete(site);
+    });
+
+  heartbeatInFlight.set(site, run);
+}
 
 export function startHeartbeat(site: SiteName) {
-  // Stop existing heartbeat if any
   stopHeartbeat(site);
 
   const interval =
     site === "niid" || site === "niid_push"
       ? config.niidKeepAliveInterval
-      : config.keepAliveInterval; // ag & ag_push use the same interval
+      : config.keepAliveInterval;
 
   log(
     `Starting heartbeat for ${site.toUpperCase()} (every ${interval / 60000} min)`,
   );
 
-  // Send first heartbeat immediately
-  sendHeartbeat(site);
+  runHeartbeatSafely(site);
 
-  // Then on interval
-  const timer = setInterval(() => sendHeartbeat(site), interval);
+  const timer = setInterval(() => runHeartbeatSafely(site), interval);
   heartbeatTimers.set(site, timer);
 }
 
@@ -221,6 +264,7 @@ export function stopHeartbeat(site: SiteName) {
     heartbeatTimers.delete(site);
     log(`Stopped heartbeat for ${site.toUpperCase()}`);
   }
+  heartbeatFailureCounts.set(site, 0);
 }
 
 export function startAllHeartbeats() {
@@ -228,13 +272,13 @@ export function startAllHeartbeats() {
   const niidStatus = getSessionStatus("niid");
   const niidPushStatus = getSessionStatus("niid_push");
 
-  if (agStatus.isActive) startHeartbeat("ag"); // AG heartbeat covers ag_push too
+  if (agStatus.isActive) startHeartbeat("ag");
   if (niidStatus.isActive) startHeartbeat("niid");
   if (niidPushStatus.isActive) startHeartbeat("niid_push");
 }
 
 export function stopAllHeartbeats() {
-  stopHeartbeat("ag"); // AG heartbeat covers ag_push too
+  stopHeartbeat("ag");
   stopHeartbeat("niid");
   stopHeartbeat("niid_push");
 }

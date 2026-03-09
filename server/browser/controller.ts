@@ -183,6 +183,19 @@ export async function clearSession(site: SiteName) {
   }
 }
 
+export function markSessionActive(site: SiteName) {
+  const now = new Date().toISOString();
+  const key: SiteName = site === 'ag_push' ? 'ag' : site;
+
+  sessionStatus.set(key, { isActive: true, lastActivity: now });
+  emitEvent('session:status', { site: key, isActive: true, lastActivity: now });
+
+  if (key === 'ag') {
+    sessionStatus.set('ag_push', { isActive: true, lastActivity: now });
+    emitEvent('session:status', { site: 'ag_push', isActive: true, lastActivity: now });
+  }
+}
+
 export function getSessionStatus(site: SiteName) {
   // AG and AG_PUSH share the same session
   const lookupKey: SiteName = site === 'ag_push' ? 'ag' : site;
