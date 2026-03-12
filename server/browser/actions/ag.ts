@@ -519,8 +519,7 @@ function saveCachedVehicleData(data: VehicleData): void {
   fs.writeFileSync(VEHICLE_DATA_PATH, JSON.stringify(data, null, 2), "utf-8");
 }
 
-const POLICY_UPDATE_URL =
-  "https://aginsuranceapplications.com/card/Policy/Policy_Update.aspx";
+const POLICY_UPDATE_URL = process.env.AG_POLICY_UPDATE_URL;
 
 /**
  * Read session cookie from the Playwright storage file.
@@ -611,7 +610,7 @@ export async function fetchVehicleData(
   const cookie = getSessionCookie();
 
   // GET the Policy Update page
-  const initialRes = await fetch(POLICY_UPDATE_URL, {
+  const initialRes = await fetch(POLICY_UPDATE_URL || "", {
     headers: { Cookie: cookie },
   });
   if (!initialRes.ok) {
@@ -678,7 +677,7 @@ async function fetchModelsInBackground(
         cboMakes: make,
       });
 
-      const postRes = await fetch(POLICY_UPDATE_URL, {
+      const postRes = await fetch(POLICY_UPDATE_URL || "", {
         method: "POST",
         headers: {
           Cookie: cookie,

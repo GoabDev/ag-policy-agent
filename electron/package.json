@@ -1,6 +1,6 @@
 {
   "name": "ag-policy-agent",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "A&G Policy Agent - Desktop App",
   "main": "main.js",
   "author": "Ajogu Joseph",

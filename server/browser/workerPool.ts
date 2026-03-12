@@ -1,21 +1,24 @@
-import { v4 as uuid } from 'uuid';
-import { BrowserContext, Page } from 'playwright';
-import { config } from '../config';
-import { createWorkerContext } from './controller';
-import { log } from '../utils/logger';
-import { SiteName, Worker, WorkerPoolStatus } from '../types';
+import { v4 as uuid } from "uuid";
+import { BrowserContext, Page } from "playwright";
+import { config } from "../config";
+import { createWorkerContext } from "./controller";
+import { log } from "../utils/logger";
+import { SiteName, Worker, WorkerPoolStatus } from "../types";
 
 // Park pages — where workers navigate after release
 const PARK_PAGES: Record<SiteName, string> = {
-  ag: 'https://aginsuranceapplications.com/card/Policy/Policy_Update.aspx',
-  ag_push: 'https://aginsuranceapplications.com/card/Utility/Spool_Unpushed.aspx',
-  niid: 'https://niid.org/App_ADM_Module/Change_Request.aspx',
-  niid_push: 'https://niid.org/App_POL_Module/Upload_Policy.aspx',
+  ag: process.env.AG_POLICY_UPDATE_URL || "",
+  ag_push: process.env.AG_POLICY_SPOOL_URL || "",
+  niid: process.env.NIID_POLICY_CORRECTION_URL || "",
+  niid_push: process.env.NIID_PUSH_URL || "",
 };
 
 // Pool state
 const workers: Map<string, Worker> = new Map();
-const waitQueue: Array<{ sites: SiteName[]; resolve: (worker: Worker) => void }> = [];
+const waitQueue: Array<{
+  sites: SiteName[];
+  resolve: (worker: Worker) => void;
+}> = [];
 
 // ============================================
 // Create a new worker with contexts for the requested sites
@@ -33,15 +36,21 @@ async function createWorker(sites: SiteName[]): Promise<Worker> {
 
     // Navigate to park page so it's ready
     try {
-      await page.goto(PARK_PAGES[site], { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.goto(PARK_PAGES[site], {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
     } catch (err: any) {
-      log(`Worker ${id}: failed to navigate to ${site} park page: ${err.message}`, 'warn');
+      log(
+        `Worker ${id}: failed to navigate to ${site} park page: ${err.message}`,
+        "warn",
+      );
     }
   }
 
   const worker: Worker = { id, contexts, pages, busy: true };
   workers.set(id, worker);
-  log(`Worker ${id} created (sites: ${sites.join(', ')})`);
+  log(`Worker ${id} created (sites: ${sites.join(", ")})`);
   return worker;
 }
 
@@ -52,7 +61,7 @@ async function createWorker(sites: SiteName[]): Promise<Worker> {
 export async function acquireWorker(sites: SiteName[]): Promise<Worker> {
   // Try to find an idle worker that has all needed sites
   for (const [, worker] of workers) {
-    if (!worker.busy && sites.every(s => worker.pages.has(s))) {
+    if (!worker.busy && sites.every((s) => worker.pages.has(s))) {
       // Verify pages are still alive
       let healthy = true;
       for (const site of sites) {
@@ -75,7 +84,7 @@ export async function acquireWorker(sites: SiteName[]): Promise<Worker> {
   }
 
   // No available worker — create one if under limit
-  const busyCount = Array.from(workers.values()).filter(w => w.busy).length;
+  const busyCount = Array.from(workers.values()).filter((w) => w.busy).length;
   if (workers.size < config.maxWorkers) {
     return createWorker(sites);
   }
@@ -103,7 +112,7 @@ export async function releaseWorker(workerId: string) {
     const next = waitQueue.shift()!;
 
     // Check if this worker has the needed sites
-    if (next.sites.every(s => worker.pages.has(s))) {
+    if (next.sites.every((s) => worker.pages.has(s))) {
       worker.busy = true;
       log(`Worker ${workerId} immediately reassigned from queue`);
       next.resolve(worker);
@@ -118,7 +127,10 @@ export async function releaseWorker(workerId: string) {
   for (const [site, page] of worker.pages) {
     if (!page.isClosed()) {
       try {
-        await page.goto(PARK_PAGES[site], { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.goto(PARK_PAGES[site], {
+          waitUntil: "domcontentloaded",
+          timeout: 15000,
+        });
       } catch {
         // Page may have issues, will be replaced on next acquire
       }
@@ -135,7 +147,9 @@ async function destroyWorker(workerId: string) {
   if (!worker) return;
 
   for (const [, ctx] of worker.contexts) {
-    try { await ctx.close(); } catch {}
+    try {
+      await ctx.close();
+    } catch {}
   }
 
   workers.delete(workerId);
@@ -148,7 +162,7 @@ async function destroyWorker(workerId: string) {
 
 export function getPoolStatus(): WorkerPoolStatus {
   const all = Array.from(workers.values());
-  const busy = all.filter(w => w.busy).length;
+  const busy = all.filter((w) => w.busy).length;
   return {
     total: all.length,
     busy,
@@ -167,5 +181,5 @@ export async function destroyAllWorkers() {
     await destroyWorker(id);
   }
   waitQueue.length = 0;
-  log('All workers destroyed');
+  log("All workers destroyed");
 }

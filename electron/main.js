@@ -1,4 +1,11 @@
-const { app, BrowserWindow, Menu, utilityProcess, dialog } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  utilityProcess,
+  dialog,
+  ipcMain,
+} = require("electron");
 const { spawn, execSync } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 const crypto = require("crypto");
@@ -8,10 +15,9 @@ const fs = require("fs");
 let mainWindow;
 let serverProcess;
 let serverPort;
+let serverPortFile;
 
-// Generate a session token so only our Electron window can talk to the server
 const SESSION_TOKEN = crypto.randomBytes(32).toString("hex");
-
 const isDev = !app.isPackaged;
 
 function getServerDir() {
@@ -19,6 +25,12 @@ function getServerDir() {
     return path.join(__dirname, "../server");
   }
   return path.join(process.resourcesPath, "server");
+}
+
+function getStoragePath() {
+  return isDev
+    ? path.join(__dirname, "..", "storage")
+    : path.join(app.getPath("userData"), "storage");
 }
 
 function loadEnvFile(filePath) {
@@ -32,8 +44,10 @@ function loadEnvFile(filePath) {
       if (eqIndex === -1) continue;
       const key = trimmed.slice(0, eqIndex).trim();
       let val = trimmed.slice(eqIndex + 1).trim();
-      // Remove surrounding quotes
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
         val = val.slice(1, -1);
       }
       vars[key] = val;
@@ -44,9 +58,22 @@ function loadEnvFile(filePath) {
   }
 }
 
+function cleanupPortFile() {
+  if (!serverPortFile) return;
+  try {
+    if (fs.existsSync(serverPortFile)) fs.unlinkSync(serverPortFile);
+  } catch {}
+}
+
 function startServer() {
   return new Promise((resolve, reject) => {
     const serverDir = getServerDir();
+    serverPortFile = path.join(
+      app.getPath("temp"),
+      `ag-policy-agent-port-${process.pid}.txt`,
+    );
+    cleanupPortFile();
+
     const envFile = loadEnvFile(path.join(serverDir, ".env"));
     const env = {
       ...process.env,
@@ -55,15 +82,11 @@ function startServer() {
       SESSION_TOKEN,
       ELECTRON: "true",
       PROJECT_ROOT: isDev ? path.join(__dirname, "..") : process.resourcesPath,
-      // Use OS-standard user data dir for storage (downloads, logs, sessions)
-      // so the app works regardless of install location
-      STORAGE_PATH: isDev
-        ? path.join(__dirname, "..", "storage")
-        : path.join(app.getPath("userData"), "storage"),
+      STORAGE_PATH: getStoragePath(),
+      SERVER_PORT_FILE: serverPortFile,
     };
 
     if (isDev) {
-      // Dev mode: use ts-node via child_process (Node.js must be installed)
       console.log(`[server] Starting dev server with ts-node`);
       serverProcess = spawn("npx", ["ts-node", "app.ts"], {
         cwd: serverDir,
@@ -72,10 +95,8 @@ function startServer() {
         shell: true,
       });
     } else {
-      // Production: use Electron's built-in Node.js via utilityProcess
       const entryPoint = path.join(serverDir, "dist", "app.js");
       console.log(`[server] Starting production server: ${entryPoint}`);
-
       serverProcess = utilityProcess.fork(entryPoint, [], {
         stdio: "pipe",
         env,
@@ -85,26 +106,45 @@ function startServer() {
 
     let started = false;
     let settled = false;
+
     const startTimeout = setTimeout(() => {
       if (!settled) {
         settled = true;
-        reject(new Error("Server start timeout (15s)"));
+        reject(new Error("Server start timeout (30s)"));
       }
-    }, 15000);
+    }, 30000);
+
+    function cleanup() {
+      clearTimeout(startTimeout);
+      clearInterval(portFilePoller);
+    }
 
     function resolveOnce(value) {
       if (settled) return;
       settled = true;
-      clearTimeout(startTimeout);
+      cleanup();
       resolve(value);
     }
 
     function rejectOnce(error) {
       if (settled) return;
       settled = true;
-      clearTimeout(startTimeout);
+      cleanup();
       reject(error);
     }
+
+    const portFilePoller = setInterval(() => {
+      if (settled || !serverPortFile || !fs.existsSync(serverPortFile)) return;
+
+      try {
+        const port = fs.readFileSync(serverPortFile, "utf-8").trim();
+        if (port) {
+          started = true;
+          serverPort = port;
+          resolveOnce(serverPort);
+        }
+      } catch {}
+    }, 200);
 
     serverProcess.stdout.on("data", (data) => {
       const output = data.toString();
@@ -124,6 +164,7 @@ function startServer() {
 
     serverProcess.on("exit", (code) => {
       console.log(`[server] Process exited with code ${code}`);
+      cleanupPortFile();
       if (!started) {
         rejectOnce(new Error(`Server exited before starting (code ${code})`));
       }
@@ -131,14 +172,12 @@ function startServer() {
   });
 }
 
-async function waitForServer(port, retries = 30) {
+async function waitForServer(port, retries = 60) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(`http://localhost:${port}/health`);
       if (res.ok) return true;
-    } catch {
-      // Server not ready yet
-    }
+    } catch {}
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error("Server never became ready");
@@ -168,19 +207,66 @@ function killServer() {
 
   try {
     if (isDev && process.platform === "win32") {
-      // Dev mode on Windows: kill the shell process tree
       execSync(`taskkill /pid ${serverProcess.pid} /T /F`, { stdio: "ignore" });
     } else {
-      // Production (utilityProcess) or non-Windows dev: .kill() works cleanly
       serverProcess.kill();
     }
-  } catch {
-    // Process may already be dead
-  }
+  } catch {}
+
+  cleanupPortFile();
   serverProcess = null;
 }
 
-// ── Auto-updater setup ──────────────────────────────────────────────
+function clearStoredSessions() {
+  const storagePath = getStoragePath();
+  for (const file of [
+    "ag-session.json",
+    "niid-session.json",
+    "niid-push-session.json",
+  ]) {
+    const fullPath = path.join(storagePath, file);
+    try {
+      if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    } catch (err) {
+      console.error(`[startup] Failed to delete session file ${fullPath}:`, err);
+    }
+  }
+}
+
+function restartApp({ clearSessions = false } = {}) {
+  if (clearSessions) {
+    clearStoredSessions();
+  }
+  killServer();
+  app.relaunch();
+  app.exit(0);
+}
+
+ipcMain.on("window:minimize", () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.on("window:maximize", () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+});
+
+ipcMain.on("window:close", () => {
+  if (mainWindow) mainWindow.close();
+});
+
+ipcMain.on("app:restart", () => {
+  restartApp();
+});
+
+ipcMain.on("app:restart-clear-sessions", () => {
+  restartApp({ clearSessions: true });
+});
+
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
@@ -197,17 +283,15 @@ autoUpdater.on("download-progress", (progress) => {
   const percent = Math.round(progress.percent);
   console.log(`[updater] Download progress: ${percent}%`);
 
-  // Show progress on the taskbar icon (Windows)
   if (mainWindow) {
     mainWindow.setProgressBar(progress.percent / 100);
-    mainWindow.setTitle(`A&G Policy Agent — Updating ${percent}%`);
+    mainWindow.setTitle(`A&G Policy Agent - Updating ${percent}%`);
   }
 });
 
 autoUpdater.on("update-downloaded", (info) => {
   console.log(`[updater] Update downloaded: v${info.version}`);
 
-  // Clear taskbar progress and restore title
   if (mainWindow) {
     mainWindow.setProgressBar(-1);
     mainWindow.setTitle("A&G Policy Agent");
@@ -231,7 +315,6 @@ autoUpdater.on("update-downloaded", (info) => {
 autoUpdater.on("error", (err) => {
   console.error("[updater] Error:", err.message);
 
-  // Clear taskbar progress on error
   if (mainWindow) {
     mainWindow.setProgressBar(-1);
     mainWindow.setTitle("A&G Policy Agent");
@@ -239,22 +322,22 @@ autoUpdater.on("error", (err) => {
     dialog.showMessageBox(mainWindow, {
       type: "error",
       title: "Update Failed",
-      message: "Failed to download the update. Please check your internet connection and try again later.",
+      message:
+        "Failed to download the update. Please check your internet connection and try again later.",
       detail: err.message,
     });
   }
 });
 
-// ── App ready ───────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   const win = createWindow();
 
   try {
     const port = await startServer();
     await waitForServer(port);
+    cleanupPortFile();
     win.loadURL(`http://localhost:${port}`);
 
-    // Check for updates after the app has loaded (production only)
     if (app.isPackaged) {
       autoUpdater.checkForUpdatesAndNotify();
     }
@@ -262,9 +345,10 @@ app.whenReady().then(async () => {
     console.error("Failed to start:", err);
 
     win.webContents.executeJavaScript(`
-      document.getElementById('status').textContent = 'Failed to start server';
+      document.getElementById('status').textContent = 'Failed to start services';
       document.getElementById('details').textContent = '${String(err.message).replace(/'/g, "\\'")}';
       document.getElementById('details').style.color = '#ef4444';
+      document.getElementById('actions').style.display = 'flex';
     `);
   }
 });

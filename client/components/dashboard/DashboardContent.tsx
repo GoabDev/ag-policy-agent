@@ -13,12 +13,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 export default function DashboardContent() {
-  const { logs, setLogs, tasks, activeTasks, isRunning, addLog } = useSSE();
+  const { logs, setLogs, tasks, activeTasks, isRunning } = useSSE();
 
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    // Prefetch vehicle data on dashboard load so it's ready when user needs it
     queryClient.prefetchQuery({
       queryKey: ["vehicle-data"],
       queryFn: getVehicleData,
@@ -67,7 +66,7 @@ export default function DashboardContent() {
         </div>
 
         <footer className="mt-16 text-center text-muted-foreground text-[10px] tracking-widest uppercase font-bold">
-          A&G Insurance — Policy Agent v2.1.1
+          A&G Insurance - Policy Agent v2.1.2
         </footer>
       </div>
     </div>

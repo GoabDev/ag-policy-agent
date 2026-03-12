@@ -2,7 +2,8 @@ import dotenv from "dotenv";
 import path from "path";
 import { Config } from "../types";
 
-const isElectronProd = process.env.ELECTRON === "true" && !__dirname.includes("node_modules");
+const isElectronProd =
+  process.env.ELECTRON === "true" && !__dirname.includes("node_modules");
 
 // In Electron production, __dirname is inside resources/server/dist/config/
 // We need to go up to resources/ to find sibling directories.
@@ -43,13 +44,14 @@ function getEnv(key: string, defaultValue?: string): string {
 // STORAGE_PATH is set by Electron main process to app.getPath("userData")/storage
 // so files are written to an OS-standard writable location regardless of install path.
 // Falls back to <projectRoot>/storage for dev mode or non-Electron usage.
-const storagePath = process.env.STORAGE_PATH || path.join(resourceBase, "storage");
+const storagePath =
+  process.env.STORAGE_PATH || path.join(resourceBase, "storage");
 
 export const config: Config = Object.seal({
   // A&G Platform
   ag: {
     url: getEnv("AG_URL"),
-    spoolUrl: getEnv("AG_SPOOL_URL", "https://aginsuranceapplications.com/card/Utility/Spool_Unpushed.aspx"),
+    spoolUrl: getEnv("AG_SPOOL_URL", process.env.AG_POLICY_SPOOL_URL),
     username: getEnv("AG_USERNAME"),
     password: getEnv("AG_PASSWORD"),
     sessionPath: path.join(storagePath, "ag-session.json"),
@@ -67,7 +69,7 @@ export const config: Config = Object.seal({
   // NIID (policy push — separate session with alt credentials)
   niidPush: {
     url: getEnv("NIID_URL"),
-    uploadUrl: getEnv("NIID_UPLOAD_URL", "https://niid.org/App_POL_Module/Upload_Policy.aspx"),
+    uploadUrl: getEnv("NIID_UPLOAD_URL", process.env.NIID_PUSH_URL),
     username: getEnv("NIID_ALT_USERNAME"),
     password: getEnv("NIID_ALT_PASSWORD"),
     sessionPath: path.join(storagePath, "niid-push-session.json"),

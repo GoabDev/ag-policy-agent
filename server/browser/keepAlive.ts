@@ -23,11 +23,10 @@ const SESSION_INACTIVITY_TIMEOUT = config.sessionInactivityTimeout;
 
 // Pages we stay parked on - where the automation work happens
 const PARK_PAGES: Record<SiteName, string> = {
-  ag: "https://aginsuranceapplications.com/card/Policy/Policy_Update.aspx",
-  niid: "https://niid.org/App_ADM_Module/Change_Request.aspx",
-  ag_push:
-    "https://aginsuranceapplications.com/card/Utility/Spool_Unpushed.aspx",
-  niid_push: "https://niid.org/App_POL_Module/Upload_Policy.aspx",
+  ag: process.env.AG_POLICY_UPDATE_URL || "",
+  niid: process.env.NIID_POLICY_CORRECTION_URL || "",
+  ag_push: process.env.AG_POLICY_SPOOL_URL || "",
+  niid_push: process.env.NIID_PUSH_URL || "",
 };
 
 // URLs that indicate expired sessions
@@ -134,7 +133,10 @@ async function sendHeartbeat(site: SiteName) {
   const status = getSessionStatus(site);
 
   if (!status.isActive) {
-    log(`Skipping heartbeat for ${site.toUpperCase()} - no active session`, "warn");
+    log(
+      `Skipping heartbeat for ${site.toUpperCase()} - no active session`,
+      "warn",
+    );
     return;
   }
 

@@ -206,6 +206,14 @@ ag-policy-agent/
 
 ## Changelog
 
+### v2.1.2 — Startup Recovery, Session Fixes & UX Improvements
+
+- **Startup timeout fix** — Electron now uses a more reliable startup handshake and a longer timeout to avoid false server start failures
+- **Startup recovery actions** — Splash screen now offers retry and clear-sessions-and-retry actions instead of forcing users to relaunch manually
+- **Saved session self-healing** — Broken saved sessions are automatically cleared after repeated recovery failures
+- **Session-specific notifications** — Login and recovery toasts now identify the exact session that needs attention
+- **Immediate NIID activation** — Manual NIID and NIID Push logins now become active immediately without requiring an app restart
+
 ### v2.1.1 — Auto-Update UX Improvements
 
 - **Download progress indicator** — Taskbar progress bar and window title show download percentage during auto-updates

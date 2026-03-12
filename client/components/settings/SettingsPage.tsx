@@ -96,7 +96,6 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
       <div className="max-w-[800px] mx-auto p-6 md:p-8">
-        {/* Header */}
         <header className="flex items-center justify-between mb-8 pb-6 border-b border-border">
           <div className="flex items-center gap-4">
             <Button
@@ -123,7 +122,6 @@ export default function SettingsPage() {
         </header>
 
         <div className="space-y-6">
-          {/* Automation */}
           <Card className="bg-card border-border shadow-xl">
             <CardHeader className="border-b border-border py-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -176,7 +174,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Log Management */}
           <Card className="bg-card border-border shadow-xl">
             <CardHeader className="border-b border-border py-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -243,7 +240,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Sessions */}
           <Card className="bg-card border-border shadow-xl">
             <CardHeader className="border-b border-border py-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -300,7 +296,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Keep-Alive (disabled) */}
           <Card className="bg-card border-border shadow-xl opacity-60">
             <CardHeader className="border-b border-border py-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -362,7 +357,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Notifications */}
           <Card className="bg-card border-border shadow-xl">
             <CardHeader className="border-b border-border py-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -401,7 +395,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Appearance */}
           <Card className="bg-card border-border shadow-xl">
             <CardHeader className="border-b border-border py-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -423,7 +416,6 @@ export default function SettingsPage() {
           </Card>
         </div>
 
-        {/* Save Button */}
         <div className="mt-8 flex justify-end">
           <Button
             onClick={handleSave}
@@ -440,7 +432,7 @@ export default function SettingsPage() {
         </div>
 
         <footer className="mt-16 text-center text-muted-foreground text-[10px] tracking-widest uppercase font-bold">
-          A&G Insurance — Policy Agent v2.1.1
+          A&G Insurance - Policy Agent v2.1.2
         </footer>
       </div>
     </div>

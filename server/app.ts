@@ -476,6 +476,16 @@ process.on("uncaughtException", (err) => {
 
 const server = app.listen(config.port, () => {
   const actualPort = (server.address() as any).port;
+  const portFile = process.env.SERVER_PORT_FILE;
+
+  if (portFile) {
+    try {
+      fs.writeFileSync(portFile, String(actualPort), "utf-8");
+    } catch (err: any) {
+      log(`Failed to write startup port file: ${err.message}`, "error");
+    }
+  }
+
   console.log(`
   ╔══════════════════════════════════════════════╗
   ║   A&G Policy Correction Agent                ║
