@@ -75,6 +75,12 @@ export const config: Config = Object.seal({
     sessionPath: path.join(storagePath, "niid-push-session.json"),
   },
 
+  // Dedicated sessions for unattended automated policy push
+  automatedPush: {
+    agSessionPath: path.join(storagePath, "ag-auto-push-session.json"),
+    niidSessionPath: path.join(storagePath, "niid-auto-push-session.json"),
+  },
+
   // Server
   port: parseInt(getEnv("PORT", "3001"), 10) || 0,
 
@@ -97,5 +103,13 @@ export const config: Config = Object.seal({
   // Paths
   storagePath,
   logsPath: path.join(storagePath, "logs"),
+  automatedLogsPath: path.join(storagePath, "automated-agent-logs"),
   dashboardPath: path.join(resourceBase, "client/out"),
+
+  // Automated Agent page access
+  automatedAgentEmails: getEnv("AUTOMATED_AGENT_EMAILS", "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+  automatedAgentPassword: getEnv("AUTOMATED_AGENT_PASSWORD", ""),
 });

@@ -7,6 +7,7 @@ import { SiteName } from "../types";
 import { markSessionActive } from "./controller";
 
 const loginsInProgress: Set<SiteName> = new Set();
+const loginBrowsers: Map<SiteName, any> = new Map();
 
 export async function openLoginPopup(site: SiteName): Promise<boolean> {
   if (loginsInProgress.has(site)) {
@@ -19,12 +20,17 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
 
   loginsInProgress.add(site);
   const siteConfig =
-    site === "ag" || site === "ag_push"
+    site === "ag" || site === "ag_push" || site === "ag_auto_push"
       ? config.ag
-      : site === "niid_push"
+      : site === "niid_push" || site === "niid_auto_push"
         ? config.niidPush
         : config.niid;
-  const sessionPath = siteConfig.sessionPath;
+  const sessionPath =
+    site === "ag_auto_push"
+      ? config.automatedPush.agSessionPath
+      : site === "niid_auto_push"
+        ? config.automatedPush.niidSessionPath
+        : siteConfig.sessionPath;
 
   log(`Opening manual login popup for ${site.toUpperCase()}...`);
   emitEvent("session:login_required", {
@@ -35,6 +41,7 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
   let browser;
   try {
     browser = await chromium.launch({ headless: false, channel: "chrome" });
+    loginBrowsers.set(site, browser);
     const context = await browser.newContext();
     const page = await context.newPage();
 
@@ -136,15 +143,27 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
     if (browser) await browser.close().catch(() => {});
     return false;
   } finally {
+    loginBrowsers.delete(site);
     loginsInProgress.delete(site);
   }
+}
+
+export async function closeManualLoginPopups() {
+  for (const [site, browser] of loginBrowsers) {
+    try {
+      await browser.close();
+      log(`Manual login popup closed for ${site.toUpperCase()}`);
+    } catch {}
+  }
+  loginBrowsers.clear();
+  loginsInProgress.clear();
 }
 
 if (require.main === module) {
   const site = process.argv[2] as SiteName;
 
-  if (!site || !["ag", "ag_push", "niid", "niid_push"].includes(site)) {
-    console.log("Usage: npx ts-node src/browser/manualLogin.ts <ag|ag_push|niid|niid_push>");
+  if (!site || !["ag", "ag_push", "niid", "niid_push", "ag_auto_push", "niid_auto_push"].includes(site)) {
+    console.log("Usage: npx ts-node src/browser/manualLogin.ts <ag|ag_push|niid|niid_push|ag_auto_push|niid_auto_push>");
     process.exit(1);
   }
 

@@ -5,6 +5,7 @@ import { config } from "../../../config";
 import { getPage, touchSession } from "../../controller";
 import { loginToAG } from "../ag";
 import { log } from "../../../utils/logger";
+import { SiteName } from "../../../types";
 
 // ============================================
 // SELECTORS — A&G Spool / Unpushed Policies page
@@ -54,20 +55,22 @@ export async function navigateToSpoolPage(page: Page): Promise<void> {
 // Get AG Spool page (handles session check)
 // ============================================
 
-export async function getAGSpoolPage(): Promise<Page> {
-  const page = await getPage("ag_push");
+export async function getAGSpoolPage(
+  site: Extract<SiteName, "ag_push" | "ag_auto_push"> = "ag_push",
+): Promise<Page> {
+  const page = await getPage(site);
   const currentUrl = page.url();
 
   // Detect expired session
   if (currentUrl.includes("ErrorPage.aspx")) {
     log("A&G session expired (on error page), re-logging in...", "warn");
-    await loginToAG(); // loginToAG now sets up both ag and ag_push pages
-    return await getPage("ag_push");
+    await loginToAG(site === "ag_auto_push" ? "ag_auto_push" : "ag");
+    return await getPage(site);
   }
 
   if (currentUrl.includes("Spool_Unpushed.aspx")) {
     log("A&G already on Spool Unpushed page — skipping navigation");
-    touchSession("ag_push");
+    touchSession(site);
     return page;
   }
 
@@ -78,8 +81,8 @@ export async function getAGSpoolPage(): Promise<Page> {
   } catch {
     // Fallback: full login + navigate
     log("A&G navigation failed, falling back to login + navigate...");
-    await loginToAG();
-    return await getPage("ag_push");
+    await loginToAG(site === "ag_auto_push" ? "ag_auto_push" : "ag");
+    return await getPage(site);
   }
 }
 

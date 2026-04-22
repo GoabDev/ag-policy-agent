@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useStatus, useLoginAG } from '@/queries/useSessions';
-import { Zap, Settings } from 'lucide-react';
+import { Bot, Zap, Settings } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export function Header() {
@@ -42,6 +42,16 @@ export function Header() {
           <span className={`w-2 h-2 rounded-full ${sessions.niid?.isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-muted-foreground/50'}`} />
           NIID {sessions.niid?.isActive ? 'Connected' : 'Offline'}
         </Badge>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 border-border bg-card"
+          onClick={() => router.push('/automated-agent')}
+        >
+          <Bot className="h-4 w-4" />
+          Automated Agent
+        </Button>
 
         <Button
           variant="outline"

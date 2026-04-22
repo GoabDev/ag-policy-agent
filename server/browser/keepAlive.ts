@@ -24,17 +24,21 @@ const SESSION_INACTIVITY_TIMEOUT = config.sessionInactivityTimeout;
 // Pages we stay parked on - where the automation work happens
 const PARK_PAGES: Record<SiteName, string> = {
   ag: process.env.AG_POLICY_UPDATE_URL || "",
-  niid: process.env.NIID_POLICY_CORRECTION_URL || "",
-  ag_push: process.env.AG_POLICY_SPOOL_URL || "",
-  niid_push: process.env.NIID_PUSH_URL || "",
+  niid: config.niid.policyCorrectionUrl,
+  ag_push: config.ag.spoolUrl,
+  ag_auto_push: config.ag.spoolUrl,
+  niid_push: config.niidPush.uploadUrl,
+  niid_auto_push: config.niidPush.uploadUrl,
 };
 
 // URLs that indicate expired sessions
 const SESSION_EXPIRED_INDICATORS: Record<SiteName, string> = {
   ag: "ErrorPage.aspx",
   ag_push: "ErrorPage.aspx",
+  ag_auto_push: "ErrorPage.aspx",
   niid: "/default.aspx",
   niid_push: "/default.aspx",
+  niid_auto_push: "/default.aspx",
 };
 
 function isSessionExpired(site: SiteName, url: string): boolean {
@@ -42,27 +46,39 @@ function isSessionExpired(site: SiteName, url: string): boolean {
 }
 
 async function handleExpiredSession(site: SiteName, page: Page) {
-  if (site === "ag") {
-    log(`Session expired for AG, attempting re-login...`, "warn");
-    await loginToAG();
+  if (site === "ag" || site === "ag_auto_push") {
+    const isAutomatedPush = site === "ag_auto_push";
+    log(
+      `Session expired for ${isAutomatedPush ? "A&G Automated Push" : "AG"}, attempting re-login...`,
+      "warn",
+    );
+    await loginToAG(isAutomatedPush ? "ag_auto_push" : "ag");
 
-    await page.goto(PARK_PAGES["ag"], {
+    await page.goto(PARK_PAGES[site], {
       waitUntil: "domcontentloaded",
       timeout: 30000,
     });
-    const agPushPage = await getPage("ag_push");
-    await agPushPage.goto(PARK_PAGES["ag_push"], {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
 
-    await saveSession("ag");
-    touchSession("ag");
-    heartbeatFailureCounts.set("ag", 0);
-    log(`AG session recovered - both pages back on park pages`);
-    emitEvent("keepalive:ping", { site: "ag", status: "recovered" });
-  } else if (site === "niid" || site === "niid_push") {
-    const label = site === "niid_push" ? "NIID Push" : "NIID";
+    if (!isAutomatedPush) {
+      const agPushPage = await getPage("ag_push");
+      await agPushPage.goto(PARK_PAGES["ag_push"], {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+    }
+
+    await saveSession(site);
+    touchSession(site);
+    heartbeatFailureCounts.set(site, 0);
+    log(`${isAutomatedPush ? "A&G Automated Push" : "AG"} session recovered`);
+    emitEvent("keepalive:ping", { site, status: "recovered" });
+  } else if (site === "niid" || site === "niid_push" || site === "niid_auto_push") {
+    const label =
+      site === "niid_auto_push"
+        ? "NIID Automated Push"
+        : site === "niid_push"
+          ? "NIID Push"
+          : "NIID";
     log(
       `Session expired for ${label} - opening manual login popup (CAPTCHA)`,
       "warn",
@@ -93,6 +109,9 @@ async function handleExpiredSession(site: SiteName, page: Page) {
 async function sendHeartbeatForPage(site: SiteName) {
   const page = await getPage(site);
   const targetUrl = PARK_PAGES[site];
+  if (!targetUrl) {
+    throw new Error(`No heartbeat park URL configured for ${site}`);
+  }
   const currentUrl = page.url();
   const targetOrigin = new URL(targetUrl).origin;
 
@@ -198,7 +217,11 @@ async function sendHeartbeat(site: SiteName) {
             ? "A&G Push"
             : site === "niid_push"
               ? "NIID Push"
-              : "NIID";
+              : site === "ag_auto_push"
+                ? "A&G Automated Push"
+                : site === "niid_auto_push"
+                  ? "NIID Automated Push"
+                  : "NIID";
 
       log(
         `${label} session failed ${failures} consecutive heartbeat checks - clearing saved session`,
@@ -245,7 +268,7 @@ export function startHeartbeat(site: SiteName) {
   stopHeartbeat(site);
 
   const interval =
-    site === "niid" || site === "niid_push"
+    site === "niid" || site === "niid_push" || site === "niid_auto_push"
       ? config.niidKeepAliveInterval
       : config.keepAliveInterval;
 
@@ -273,14 +296,20 @@ export function startAllHeartbeats() {
   const agStatus = getSessionStatus("ag");
   const niidStatus = getSessionStatus("niid");
   const niidPushStatus = getSessionStatus("niid_push");
+  const agAutoPushStatus = getSessionStatus("ag_auto_push");
+  const niidAutoPushStatus = getSessionStatus("niid_auto_push");
 
   if (agStatus.isActive) startHeartbeat("ag");
   if (niidStatus.isActive) startHeartbeat("niid");
   if (niidPushStatus.isActive) startHeartbeat("niid_push");
+  if (agAutoPushStatus.isActive) startHeartbeat("ag_auto_push");
+  if (niidAutoPushStatus.isActive) startHeartbeat("niid_auto_push");
 }
 
 export function stopAllHeartbeats() {
   stopHeartbeat("ag");
   stopHeartbeat("niid");
   stopHeartbeat("niid_push");
+  stopHeartbeat("ag_auto_push");
+  stopHeartbeat("niid_auto_push");
 }

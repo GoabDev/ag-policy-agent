@@ -2,18 +2,32 @@ import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { sileo } from 'sileo';
 
+interface TaskStepState {
+  site: string;
+  action: string;
+  status: 'success' | 'failed' | 'skipped';
+  details?: string;
+}
+
 export interface TaskState {
   id: string;
   type: string;
   policyNumber?: string;
-  steps: any[];
+  steps: TaskStepState[];
   status: 'running' | 'completed' | 'failed' | 'cancelled';
   error?: string;
 }
 
+interface ActivityLog {
+  icon: string;
+  msg: string;
+  time: string;
+  id: number;
+}
+
 export function useSSE() {
   const queryClient = useQueryClient();
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map());
 
   const getSessionLabel = useCallback((site?: string) => {
@@ -26,6 +40,10 @@ export function useSSE() {
         return 'NIID session';
       case 'niid_push':
         return 'NIID Push session';
+      case 'ag_auto_push':
+        return 'A&G Automated Push session';
+      case 'niid_auto_push':
+        return 'NIID Automated Push session';
       default:
         return 'Session';
     }

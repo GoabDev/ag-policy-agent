@@ -4,7 +4,11 @@ import path from "path";
 import fs from "fs";
 import { config } from "./config";
 import { addSSEClient, log, loadTaskLogs } from "./utils/logger";
-import { getSessionStatus, closeBrowser } from "./browser/controller";
+import {
+  getSessionStatus,
+  closeBrowser,
+  clearAllSessions,
+} from "./browser/controller";
 import {
   startAllHeartbeats,
   stopAllHeartbeats,
@@ -19,11 +23,27 @@ import {
 import { getPoolStatus, destroyAllWorkers } from "./browser/workerPool";
 import { CorrectionInput, PolicyPushInput } from "./types";
 import {
-  runPolicyPush,
   cancelPolicyPush,
   getRunningPushTasks,
   getPushTaskHistory,
 } from "./agents/policyPushRunner";
+import {
+  enqueuePolicyPush,
+  getPolicyPushQueueStatus,
+} from "./agents/policyPushQueue";
+import {
+  getAutomatedAgentLogs,
+  getAutomatedAgentLogsPage,
+  getAutomatedAgentStatus,
+  continueYearToDateAgent,
+  startCurrentDayAgent,
+  startYearToDateAgent,
+  stopAutomatedAgent,
+} from "./agents/automatedPolicyAgent";
+import {
+  loginAutomatedAgent,
+  requireAutomatedAgentAuth,
+} from "./agents/automatedAgentAuth";
 import { loadSettings, getSettings, saveSettings } from "./settings";
 import {
   startLogCleanup,
@@ -54,11 +74,14 @@ app.get("/api/status", (req, res) => {
       isRunning: running.length > 0,
       runningTasks: running,
       workerPool: getPoolStatus(),
+      policyPushQueue: getPolicyPushQueueStatus(),
       sessions: {
         ag: getSessionStatus("ag"),
         ag_push: getSessionStatus("ag_push"),
         niid: getSessionStatus("niid"),
         niid_push: getSessionStatus("niid_push"),
+        ag_auto_push: getSessionStatus("ag_auto_push"),
+        niid_auto_push: getSessionStatus("niid_auto_push"),
       },
       uptime: Math.floor((Date.now() - startTime) / 1000),
     },
@@ -263,7 +286,7 @@ app.post("/api/policy-push/run", async (req, res) => {
     }
 
     // Run in background
-    const taskPromise = runPolicyPush(input);
+    const taskPromise = enqueuePolicyPush(input, "manual");
 
     taskPromise
       .then((task) => {
@@ -314,6 +337,133 @@ app.get("/api/policy-push/logs", (req, res) => {
   res.json({ success: true, data: merged });
 });
 
+// Stop heartbeats, kill all browser sessions, close all browsers, and delete saved sessions
+app.post("/api/sessions/stop-all", async (req, res) => {
+  try {
+    stopAutomatedAgent();
+    stopAllHeartbeats();
+
+    const { closeManualLoginPopups } = await import("./browser/manualLogin");
+    await closeManualLoginPopups();
+    await destroyAllWorkers();
+    await clearAllSessions();
+
+    res.json({
+      success: true,
+      data: { message: "All sessions stopped and browser windows closed" },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================
+// Automated Agent
+// ============================================
+
+app.post("/api/automated-agent/login", (req, res) => {
+  const { email, password } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      error: "Email and password are required",
+    });
+  }
+
+  const session = loginAutomatedAgent(email, password);
+  if (!session) {
+    return res.status(401).json({
+      success: false,
+      error: "Invalid Automated Agent login",
+    });
+  }
+
+  res.json({ success: true, data: session });
+});
+
+app.get(
+  "/api/automated-agent/status",
+  requireAutomatedAgentAuth,
+  (req, res) => {
+    res.json({ success: true, data: getAutomatedAgentStatus() });
+  },
+);
+
+app.post(
+  "/api/automated-agent/current-day/start",
+  requireAutomatedAgentAuth,
+  (req, res) => {
+    try {
+      startCurrentDayAgent();
+      res.json({
+        success: true,
+        data: { message: "Current-day automated agent started" },
+      });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  },
+);
+
+app.post(
+  "/api/automated-agent/year-to-date/start",
+  requireAutomatedAgentAuth,
+  (req, res) => {
+    try {
+      startYearToDateAgent();
+      res.json({
+        success: true,
+        data: { message: "Year-to-date automated agent started" },
+      });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  },
+);
+
+app.post(
+  "/api/automated-agent/year-to-date/continue",
+  requireAutomatedAgentAuth,
+  (req, res) => {
+    try {
+      continueYearToDateAgent();
+      res.json({
+        success: true,
+        data: { message: "Year-to-date automated agent continued" },
+      });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  },
+);
+
+app.post(
+  "/api/automated-agent/stop",
+  requireAutomatedAgentAuth,
+  (req, res) => {
+    const stopped = stopAutomatedAgent();
+    res.json({
+      success: true,
+      data: {
+        message: stopped
+          ? "Automated agent stop requested"
+          : "No automated agent is running",
+      },
+    });
+  },
+);
+
+app.get(
+  "/api/automated-agent/logs",
+  requireAutomatedAgentAuth,
+  (req, res) => {
+    const page = Number(req.query.page || 1);
+    const pageSize = Number(req.query.pageSize || 20);
+    res.json({ success: true, data: getAutomatedAgentLogsPage(page, pageSize) });
+  },
+);
+
 // Open a headed browser popup for manual NIID Push login
 app.post("/api/sessions/login-niid-push", async (req, res) => {
   try {
@@ -355,6 +505,48 @@ app.post("/api/sessions/login-niid-all", async (req, res) => {
 
     if (niidSuccess) startHeartbeat("niid");
     if (niidPushSuccess) startHeartbeat("niid_push");
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Login dedicated automated push sessions
+app.post("/api/sessions/login-automated-push", async (req, res) => {
+  try {
+    const { loginToAG } = await import("./browser/actions/ag");
+    const { openLoginPopup } = await import("./browser/manualLogin");
+
+    res.json({
+      success: true,
+      data: {
+        message:
+          "Automated push login started. Complete NIID login in the browser window.",
+      },
+    });
+
+    await loginToAG("ag_auto_push");
+    startHeartbeat("ag_auto_push");
+
+    const niidSuccess = await openLoginPopup("niid_auto_push");
+    if (niidSuccess) startHeartbeat("niid_auto_push");
+  } catch (err: any) {
+    log(`Automated push login failed: ${err.message}`, "error");
+  }
+});
+
+app.post("/api/sessions/login-automated-niid-push", async (req, res) => {
+  try {
+    const { openLoginPopup } = await import("./browser/manualLogin");
+    res.json({
+      success: true,
+      data: {
+        message:
+          "Automated NIID Push login popup opened. Complete login in the browser window.",
+      },
+    });
+
+    const success = await openLoginPopup("niid_auto_push");
+    if (success) startHeartbeat("niid_auto_push");
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -436,7 +628,7 @@ app.get("/{*path}", (req, res) => {
 
 function initStorage(): void {
   // Ensure required directories exist
-  for (const dir of [config.storagePath, config.logsPath]) {
+  for (const dir of [config.storagePath, config.logsPath, config.automatedLogsPath]) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
 

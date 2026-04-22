@@ -2,6 +2,7 @@ import { Page } from "playwright";
 import { config } from "../../../config";
 import { getPage, touchSession } from "../../controller";
 import { log, emitEvent } from "../../../utils/logger";
+import { SiteName } from "../../../types";
 
 // ============================================
 // SELECTORS — NIID Upload Policy page
@@ -32,9 +33,11 @@ const UPLOAD_SELECTORS = {
 // Check NIID Push session
 // ============================================
 
-export async function checkNIIDPushSession(): Promise<boolean> {
+export async function checkNIIDPushSession(
+  site: Extract<SiteName, "niid_push" | "niid_auto_push"> = "niid_push",
+): Promise<boolean> {
   try {
-    const page = await getPage("niid_push");
+    const page = await getPage(site);
     await page.goto(config.niidPush.uploadUrl, {
       waitUntil: "domcontentloaded",
       timeout: 30000,
@@ -46,7 +49,7 @@ export async function checkNIIDPushSession(): Promise<boolean> {
       return false;
     }
 
-    touchSession("niid_push");
+    touchSession(site);
     return true;
   } catch (err: any) {
     log(`NIID Push session check failed: ${err.message}`, "error");
@@ -58,8 +61,10 @@ export async function checkNIIDPushSession(): Promise<boolean> {
 // Get NIID Upload page (handles session check)
 // ============================================
 
-export async function getNIIDUploadPage(): Promise<Page> {
-  const page = await getPage("niid_push");
+export async function getNIIDUploadPage(
+  site: Extract<SiteName, "niid_push" | "niid_auto_push"> = "niid_push",
+): Promise<Page> {
+  const page = await getPage(site);
   const currentUrl = page.url();
 
   // Detect expired session — NIID redirects to /default.aspx
@@ -71,7 +76,7 @@ export async function getNIIDUploadPage(): Promise<Page> {
 
   if (currentUrl.includes("Upload_Policy.aspx")) {
     log("NIID Push already on Upload Policy page — skipping navigation");
-    touchSession("niid_push");
+    touchSession(site);
     return page;
   }
 
@@ -89,7 +94,7 @@ export async function getNIIDUploadPage(): Promise<Page> {
     );
   }
 
-  touchSession("niid_push");
+  touchSession(site);
   return page;
 }
 

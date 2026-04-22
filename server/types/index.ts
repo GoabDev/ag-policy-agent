@@ -80,7 +80,13 @@ export interface Task {
 // Session
 // ============================================
 
-export type SiteName = "ag" | "niid" | "ag_push" | "niid_push";
+export type SiteName =
+  | "ag"
+  | "niid"
+  | "ag_push"
+  | "niid_push"
+  | "ag_auto_push"
+  | "niid_auto_push";
 
 export interface SessionStatus {
   site: SiteName;
@@ -108,6 +114,8 @@ export interface AgentStatus {
     ag_push: SessionStatus;
     niid: SessionStatus;
     niid_push: SessionStatus;
+    ag_auto_push: SessionStatus;
+    niid_auto_push: SessionStatus;
   };
   uptime: number;
 }
@@ -150,6 +158,8 @@ export type SSEEventType =
   | "session:status"
   | "session:login_required"
   | "session:login_failed"
+  | "automated:status"
+  | "automated:run"
   | "keepalive:ping"
   | "log";
 
@@ -180,7 +190,7 @@ export type PolicyPushStatus = "pending" | "running" | "completed" | "failed" | 
 
 export interface PolicyPushStep {
   timestamp: string;
-  site: "ag" | "ag_push" | "niid_push";
+  site: "ag" | "ag_push" | "niid_push" | "ag_auto_push" | "niid_auto_push";
   action: string;
   status: "success" | "failed" | "skipped";
   details?: string;
@@ -189,6 +199,9 @@ export interface PolicyPushStep {
 export interface PolicyPushTask {
   id: string;
   input: PolicyPushInput;
+  source?: "manual" | "automated";
+  automationRunId?: string;
+  automationMode?: AutomatedAgentMode;
   status: PolicyPushStatus;
   steps: PolicyPushStep[];
   createdAt: string;
@@ -197,6 +210,49 @@ export interface PolicyPushTask {
   downloadedFile?: string;
   uploadResult?: string;
   uploadHasResults?: boolean;
+}
+
+// ============================================
+// Automated Policy Agent Types
+// ============================================
+
+export type AutomatedAgentMode = "current_day" | "year_to_date";
+export type AutomatedAgentStatus =
+  | "idle"
+  | "running"
+  | "stopping"
+  | "completed"
+  | "failed"
+  | "requires_login";
+
+export interface AutomatedAgentRun {
+  id: string;
+  mode: AutomatedAgentMode;
+  fromDate: string;
+  toDate: string;
+  status: PolicyPushStatus;
+  attempt: number;
+  createdAt: string;
+  completedAt?: string;
+  error?: string;
+  policyPushTaskId?: string;
+}
+
+export interface AutomatedAgentState {
+  mode: AutomatedAgentMode | null;
+  status: AutomatedAgentStatus;
+  startedAt?: string;
+  stoppedAt?: string;
+  message?: string;
+  currentRun?: AutomatedAgentRun;
+  runs: AutomatedAgentRun[];
+  yearToDate: {
+    year?: number;
+    nextDate?: string;
+    endDate?: string;
+    completedBatches: number;
+    failedBatches: number;
+  };
 }
 
 // ============================================
@@ -212,6 +268,7 @@ export interface UserSettings {
   agKeepAliveMinutes: number;
   niidKeepAliveMinutes: number;
   notifications: "all" | "errors" | "none";
+  automatedAgentPassword?: string;
 }
 
 export interface Config {
@@ -236,6 +293,10 @@ export interface Config {
     password: string;
     sessionPath: string;
   };
+  automatedPush: {
+    agSessionPath: string;
+    niidSessionPath: string;
+  };
   port: number;
   keepAliveInterval: number;
   niidKeepAliveInterval: number;
@@ -244,5 +305,8 @@ export interface Config {
   headless: boolean;
   storagePath: string;
   logsPath: string;
+  automatedLogsPath: string;
   dashboardPath: string;
+  automatedAgentEmails: string[];
+  automatedAgentPassword: string;
 }

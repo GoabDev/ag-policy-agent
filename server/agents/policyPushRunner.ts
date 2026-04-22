@@ -20,6 +20,22 @@ import { renameSheetToSheet1 } from "../utils/xlsxProcessor";
 import { config } from "../config";
 import { touchWorkActivity } from "../browser/controller";
 
+export interface PolicyPushSessionSites {
+  ag: "ag_push" | "ag_auto_push";
+  niid: "niid_push" | "niid_auto_push";
+}
+
+export interface PolicyPushRunMetadata {
+  source?: "manual" | "automated";
+  automationRunId?: string;
+  automationMode?: "current_day" | "year_to_date";
+}
+
+const MANUAL_PUSH_SITES: PolicyPushSessionSites = {
+  ag: "ag_push",
+  niid: "niid_push",
+};
+
 // Running push tasks
 const runningPushTasks: Map<string, PolicyPushTask> = new Map();
 const abortControllers: Map<string, AbortController> = new Map();
@@ -46,7 +62,7 @@ function addStep(task: PolicyPushTask, step: PolicyPushStep) {
 }
 
 function createStep(
-  site: "ag" | "ag_push" | "niid_push",
+  site: "ag" | "ag_push" | "niid_push" | "ag_auto_push" | "niid_auto_push",
   action: string,
   status: "success" | "failed" | "skipped",
   details?: string
@@ -65,11 +81,16 @@ function createStep(
 // ============================================
 
 export async function runPolicyPush(
-  input: PolicyPushInput
+  input: PolicyPushInput,
+  sites: PolicyPushSessionSites = MANUAL_PUSH_SITES,
+  metadata: PolicyPushRunMetadata = {},
 ): Promise<PolicyPushTask> {
   const task: PolicyPushTask = {
     id: uuid(),
     input,
+    source: metadata.source || "manual",
+    automationRunId: metadata.automationRunId,
+    automationMode: metadata.automationMode,
     status: "running",
     steps: [],
     createdAt: new Date().toISOString(),
@@ -89,8 +110,8 @@ export async function runPolicyPush(
   log(`Starting policy push task: ${task.id} (${label})`);
 
   // Reset inactivity timer — real work is happening
-  touchWorkActivity("ag_push");
-  touchWorkActivity("niid_push");
+  touchWorkActivity(sites.ag);
+  touchWorkActivity(sites.niid);
 
   // Track files for cleanup on cancellation
   let downloadedFilePath: string | undefined;
@@ -100,8 +121,8 @@ export async function runPolicyPush(
     checkCancelled(signal);
 
     // Step 1: Get A&G spool page
-    const agPage = await getAGSpoolPage();
-    addStep(task, createStep("ag_push", "A&G spool page ready", "success"));
+    const agPage = await getAGSpoolPage(sites.ag);
+    addStep(task, createStep(sites.ag, "A&G spool page ready", "success"));
     checkCancelled(signal);
 
     // Step 2: Download XLSX from A&G
@@ -122,7 +143,7 @@ export async function runPolicyPush(
     addStep(
       task,
       createStep(
-        "ag_push",
+        sites.ag,
         "Policy file downloaded",
         "success",
         path.basename(downloadedFilePath)
@@ -144,7 +165,7 @@ export async function runPolicyPush(
     addStep(
       task,
       createStep(
-        "ag_push",
+        sites.ag,
         "XLSX sheet renamed to Sheet1",
         "success",
         path.basename(processedFilePath)
@@ -153,8 +174,8 @@ export async function runPolicyPush(
     checkCancelled(signal);
 
     // Step 4: Get NIID upload page
-    const niidPage = await getNIIDUploadPage();
-    addStep(task, createStep("niid_push", "NIID upload page ready", "success"));
+    const niidPage = await getNIIDUploadPage(sites.niid);
+    addStep(task, createStep(sites.niid, "NIID upload page ready", "success"));
     checkCancelled(signal);
 
     // Step 5: Upload processed file to NIID
@@ -165,12 +186,12 @@ export async function runPolicyPush(
     if (uploadResult.hasResults) {
       addStep(
         task,
-        createStep("niid_push", "Policy file uploaded to NIID", "success", uploadResult.resultText)
+        createStep(sites.niid, "Policy file uploaded to NIID", "success", uploadResult.resultText)
       );
     } else {
       addStep(
         task,
-        createStep("niid_push", "Upload completed but NIID returned no result", "failed", uploadResult.resultText)
+        createStep(sites.niid, "Upload completed but NIID returned no result", "failed", uploadResult.resultText)
       );
     }
 
@@ -196,14 +217,14 @@ export async function runPolicyPush(
     if (err instanceof CancellationError) {
       task.status = "cancelled";
       task.completedAt = new Date().toISOString();
-      addStep(task, createStep("ag_push", "Task cancelled by user", "failed"));
+      addStep(task, createStep(sites.ag, "Task cancelled by user", "failed"));
       emitEvent("push:cancelled", { taskId: task.id });
       log(`Policy push task cancelled: ${task.id}`);
     } else {
       task.status = "failed";
       task.error = err.message;
       task.completedAt = new Date().toISOString();
-      addStep(task, createStep("ag_push", "error", "failed", err.message));
+      addStep(task, createStep(sites.ag, "error", "failed", err.message));
       emitEvent("push:failed", { taskId: task.id, error: err.message });
       log(`Policy push task failed: ${task.id} — ${err.message}`, "error");
     }

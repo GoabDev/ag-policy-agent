@@ -62,9 +62,16 @@ const SELECTORS = {
 // Login to A&G (fully automated, no captcha)
 // ============================================
 
-export async function loginToAG(): Promise<Page> {
-  log("Logging into A&G Platform...");
-  const page = await getPage("ag");
+export async function loginToAG(
+  site: "ag" | "ag_auto_push" = "ag",
+): Promise<Page> {
+  const isAutomatedPush = site === "ag_auto_push";
+  log(
+    isAutomatedPush
+      ? "Logging into A&G Automated Push session..."
+      : "Logging into A&G Platform...",
+  );
+  const page = await getPage(site);
 
   await page.goto(`${config.ag.url}`, { waitUntil: "networkidle" });
 
@@ -73,8 +80,8 @@ export async function loginToAG(): Promise<Page> {
     await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
       timeout: 5000,
     });
-    log("Already logged into A&G");
-    touchSession("ag");
+    log(isAutomatedPush ? "Already logged into A&G Automated Push" : "Already logged into A&G");
+    touchSession(site);
   } catch {
     // Not logged in, proceed with login
     await page.fill(SELECTORS.login.usernameField, config.ag.username);
@@ -87,21 +94,32 @@ export async function loginToAG(): Promise<Page> {
     });
   }
 
-  // Also set up the ag_push page in the same context (shared cookies)
-  const agPushPage = await getPage("ag_push");
-  try {
-    await agPushPage.goto(config.ag.spoolUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
-    log("AG Push page navigated to spool page");
-  } catch (err: any) {
-    log(`Failed to navigate AG Push page to spool: ${err.message}`, "warn");
+  if (isAutomatedPush) {
+    try {
+      await page.goto(config.ag.spoolUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+      log("A&G Automated Push page navigated to spool page");
+    } catch (err: any) {
+      log(`Failed to navigate A&G Automated Push page to spool: ${err.message}`, "warn");
+    }
+  } else {
+    // Also set up the ag_push page in the same context (shared cookies)
+    const agPushPage = await getPage("ag_push");
+    try {
+      await agPushPage.goto(config.ag.spoolUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+      log("AG Push page navigated to spool page");
+    } catch (err: any) {
+      log(`Failed to navigate AG Push page to spool: ${err.message}`, "warn");
+    }
   }
 
-  // Save session (covers both pages since same context)
-  await saveSession("ag");
-  log("A&G login successful ✅");
+  await saveSession(site);
+  log(isAutomatedPush ? "A&G Automated Push login successful" : "A&G login successful ✅");
 
   return page;
 }

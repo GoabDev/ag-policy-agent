@@ -66,6 +66,42 @@ export function useLoginNIIDAll() {
   });
 }
 
+export function useLoginAutomatedPushSessions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.loginAutomatedPushSessions,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      queryClient.invalidateQueries({ queryKey: ['automated-agent-status'] });
+      sileo.success({
+        title: 'Automated push login started',
+        description: 'Complete NIID login in the browser window',
+      });
+    },
+    onError: (error: Error) => {
+      sileo.error({ title: 'Automated push login failed', description: error.message || 'Something went wrong' });
+    },
+  });
+}
+
+export function useLoginAutomatedNIIDPush() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.loginAutomatedNIIDPush,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      queryClient.invalidateQueries({ queryKey: ['automated-agent-status'] });
+      sileo.success({
+        title: 'Automated NIID Push login popup opened',
+        description: 'Complete login in the browser window',
+      });
+    },
+    onError: (error: Error) => {
+      sileo.error({ title: 'Automated NIID Push login failed', description: error.message || 'Something went wrong' });
+    },
+  });
+}
+
 export function useKeepAlive() {
   return useMutation({
     mutationFn: api.startKeepAlive,
@@ -74,6 +110,21 @@ export function useKeepAlive() {
     },
     onError: (error: Error) => {
       sileo.error({ title: 'Failed to start heartbeats', description: error.message || 'Something went wrong' });
+    },
+  });
+}
+
+export function useStopAllSessions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.stopAllSessions,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      queryClient.invalidateQueries({ queryKey: ['automated-agent-status'] });
+      sileo.success({ title: 'All sessions stopped', description: 'Browsers were closed and saved sessions were cleared' });
+    },
+    onError: (error: Error) => {
+      sileo.error({ title: 'Failed to stop sessions', description: error.message || 'Something went wrong' });
     },
   });
 }

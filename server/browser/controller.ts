@@ -61,11 +61,42 @@ export async function closeBrowser() {
   log('Browser closed');
 }
 
+export async function clearAllSessions() {
+  const uniqueSessionPaths = new Set<string>([
+    getSessionPath('ag'),
+    getSessionPath('niid'),
+    getSessionPath('niid_push'),
+    getSessionPath('ag_auto_push'),
+    getSessionPath('niid_auto_push'),
+  ]);
+
+  for (const sessionPath of uniqueSessionPaths) {
+    try {
+      if (fs.existsSync(sessionPath)) fs.unlinkSync(sessionPath);
+    } catch (err: any) {
+      log(`Failed to delete session file ${sessionPath}: ${err.message}`, 'warn');
+    }
+  }
+
+  await closeBrowser();
+
+  const now = new Date().toISOString();
+  for (const site of ['ag', 'ag_push', 'niid', 'niid_push', 'ag_auto_push', 'niid_auto_push'] as SiteName[]) {
+    sessionStatus.set(site, { isActive: false, lastActivity: now });
+    emitEvent('session:status', { site, isActive: false, lastActivity: now });
+  }
+
+  lastWorkActivity.clear();
+  log('All sessions cleared');
+}
+
 // ============================================
 // Session Management
 // ============================================
 
 function getSessionPath(site: SiteName): string {
+  if (site === 'ag_auto_push') return config.automatedPush.agSessionPath;
+  if (site === 'niid_auto_push') return config.automatedPush.niidSessionPath;
   if (site === 'ag' || site === 'ag_push') return config.ag.sessionPath;
   if (site === 'niid_push') return config.niidPush.sessionPath;
   return config.niid.sessionPath;
@@ -237,7 +268,7 @@ export function touchSession(site: SiteName) {
   // AG and AG_PUSH share the same session
   const key: SiteName = site === 'ag_push' ? 'ag' : site;
   const current = sessionStatus.get(key);
-  sessionStatus.set(key, { isActive: true, lastActivity: now, ...current });
+  sessionStatus.set(key, { ...current, isActive: true, lastActivity: now });
 }
 
 // Mark that real user-initiated work happened (resets inactivity timer)

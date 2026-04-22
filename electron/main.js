@@ -223,6 +223,8 @@ function clearStoredSessions() {
     "ag-session.json",
     "niid-session.json",
     "niid-push-session.json",
+    "ag-auto-push-session.json",
+    "niid-auto-push-session.json",
   ]) {
     const fullPath = path.join(storagePath, file);
     try {
