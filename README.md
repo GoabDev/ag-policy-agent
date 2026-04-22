@@ -28,13 +28,27 @@ Upload policies from A&G to NIID with two methods:
 
 The system automatically downloads XLSX files from A&G Spool, processes them, and uploads to NIID.
 
+### Automated Agent
+
+Run unattended policy push workflows from a protected Automated Agent area:
+
+- **Current Day Repeater** — Pushes the current day immediately, then repeats every 10 minutes until the day ends
+- **Year-To-Date Batch Agent** — Pushes from January 1 to the current date in two-day calendar batches
+- **Continue Year-To-Date** — Resumes from the last saved successful batch position instead of starting over
+- **Dedicated automated sessions** — Uses separate A&G and NIID push browser sessions from the manual push workflow
+- **Automation logs** — Paginated log views with upload result previews and full push detail dialogs
+
+Manual policy push and automated policy push are queued separately but serialized through the same push lane, so overlapping uploads do not run against NIID at the same time.
+
 ### Session Management
 
 - Independent browser sessions for A&G, NIID Corrections, and NIID Push
+- Separate automated A&G Push and automated NIID Push sessions for unattended agents
 - Manual login support for NIID (handles CAPTCHA)
 - Auto-login for A&G platform
 - Session keep-alive with configurable heartbeat intervals (separate intervals for A&G and NIID)
 - Automatic session inactivity timeout — idle sessions are killed after a configurable period
+- Stop All Sessions action to close and clear every manual and automated browser session
 - Visual login status indicators
 
 ### Real-Time Monitoring
@@ -42,6 +56,8 @@ The system automatically downloads XLSX files from A&G Spool, processes them, an
 - Live activity feed showing all system events as they happen
 - Toast notifications for task success, failure, and warning events
 - Correction history table with color-coded status indicators (pending, running, completed, failed, cancelled)
+- Push history and automation history tables with upload result previews and detail dialogs
+- Backend-paginated automation logs to keep large histories responsive
 - Worker pool status display (active workers, queue length)
 - Step-by-step task progress streaming via SSE
 
@@ -112,6 +128,14 @@ The app automatically checks for updates on startup. When a new version is avail
 3. Click **Submit** — the app downloads from A&G Spool and uploads to NIID
 4. Track progress in real-time
 
+### Running Automated Agents
+
+1. Open **Automated Agent** from the app header
+2. Log in with an authorized automation account
+3. Start the automated A&G Push and automated NIID Push sessions from Session Management
+4. Start **Current Day Repeater** for continuous same-day pushes, or start/continue **Year-To-Date Batch Agent** for historical batches
+5. Review recent automation logs on the Automated Agent page, or open the full logs page for paginated history and complete push details
+
 ---
 
 ## Tech Stack
@@ -144,6 +168,20 @@ cd client && npm install
 cd ../server && npm install
 cd ../electron && npm install
 ```
+
+### Environment Variables
+
+The backend reads configuration from `server/.env` during local development and from the packaged runtime environment in production.
+
+```bash
+# Comma-separated list of emails allowed to access the Automated Agent page
+AUTOMATED_AGENT_EMAILS=automation-user@example.com
+
+# Shared password for Automated Agent access
+AUTOMATED_AGENT_PASSWORD=change-me
+```
+
+Keep real credentials out of source control. Add or rotate authorized automation emails in the environment, then restart the backend/Electron app so the new values are loaded.
 
 ### Running in Development
 
@@ -193,6 +231,7 @@ ag-policy-agent/
 │   ├── browser/             # Playwright automation & worker pool
 │   ├── config/              # Environment configuration
 │   ├── jobs/                # Scheduled jobs (log cleanup)
+│   ├── services/            # Automation orchestration, sessions, queues
 │   ├── types/               # TypeScript interfaces
 │   └── utils/               # Logger, XLSX processor
 ├── electron/                # Electron main process
@@ -202,9 +241,30 @@ ag-policy-agent/
 └── storage/                 # Runtime data (sessions, logs, vehicle data)
 ```
 
+Automated agent progress is persisted in `storage/automated-agent-state.json`. Push logs are stored with the normal task log history so automation entries can reuse the same result, error, step, and upload-detail views as manual push history.
+
 ---
 
 ## Changelog
+
+### v2.2.0 — Automated Policy Push Agents
+
+#### New Features
+
+- **Automated Agent page** — Protected app area for unattended policy push workflows
+- **Current Day Repeater** — Pushes today's policies immediately and every 10 minutes until the day ends
+- **Year-To-Date Batch Agent** — Pushes January 1 through today in two-day real-calendar batches
+- **Continue Year-To-Date** — Resumes from saved progress when a historical run stops before reaching today
+- **Dedicated automated sessions** — Automated A&G Push and NIID Push sessions are separate from manual push sessions
+- **Stop All Sessions** — Closes and clears every manual and automated browser session from one action
+- **Automation log views** — Recent log table, full paginated logs page, upload result previews, and complete detail dialogs
+
+#### Improvements
+
+- **Shared push queue safety** — Manual and automated push work is serialized so concurrent agents do not collide in NIID
+- **Automation progress persistence** — Year-to-date progress survives restarts through persisted agent state
+- **Session stability fixes** — Push session heartbeat and activity tracking now use the correct configured URLs and refresh activity timestamps correctly
+- **Expired login handling** — Automated pages validate access before rendering protected dashboards to avoid login/dashboard flicker
 
 ### v2.1.2 — Startup Recovery, Session Fixes & UX Improvements
 

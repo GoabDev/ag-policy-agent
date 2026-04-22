@@ -408,9 +408,9 @@ export default function AutomatedAgentPage() {
                     <th className="py-2 pr-4 font-medium">Status</th>
                     <th className="py-2 pr-4 font-medium">Agent</th>
                     <th className="py-2 pr-4 font-medium">Range</th>
-                    <th className="py-2 pr-4 font-medium">Steps</th>
+                    <th className="py-2 pr-4 font-medium">Result</th>
                     <th className="py-2 pr-4 font-medium">Created</th>
-                    <th className="py-2 font-medium">Error</th>
+                    <th className="py-2 font-medium">Steps</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -435,13 +435,19 @@ export default function AutomatedAgentPage() {
                       </td>
                       <td className="py-3 pr-4 capitalize">{run.automationMode?.replace("_", " ")}</td>
                       <td className="py-3 pr-4">{getRunLabel(run)}</td>
-                      <td className="py-3 pr-4">{run.steps?.length || 0}</td>
+                      <td className="max-w-[260px] py-3 pr-4 text-xs text-muted-foreground">
+                        {run.uploadResult ? (
+                          <span className="line-clamp-2">{run.uploadResult}</span>
+                        ) : run.error ? (
+                          <span className="line-clamp-2 text-destructive/80">{run.error}</span>
+                        ) : (
+                          <span>-</span>
+                        )}
+                      </td>
                       <td className="py-3 pr-4 text-muted-foreground">
                         {run.createdAt ? new Date(run.createdAt).toLocaleString() : "-"}
                       </td>
-                      <td className="max-w-[260px] truncate py-3 text-muted-foreground">
-                        {run.error || "-"}
-                      </td>
+                      <td className="py-3 text-muted-foreground">{run.steps?.length || 0}</td>
                     </tr>
                   ))}
                 </tbody>
