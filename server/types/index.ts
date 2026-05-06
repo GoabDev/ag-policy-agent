@@ -73,7 +73,8 @@ export type CorrectionInput =
 // ============================================
 
 export interface PolicyStatusInput {
-  policyNumber: string;
+  lookupValue: string;
+  lookupType?: "policy_number" | "registration";
 }
 
 export interface PolicyStatusSummaryRow {
@@ -95,7 +96,9 @@ export interface PolicyStatusTrailRow {
 }
 
 export interface PolicyStatusResult {
-  policyNumber: string;
+  lookupValue: string;
+  lookupType: "policy_number" | "registration";
+  message?: string;
   summaryRows: PolicyStatusSummaryRow[];
   trailRows: PolicyStatusTrailRow[];
 }

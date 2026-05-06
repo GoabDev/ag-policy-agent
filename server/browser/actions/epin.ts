@@ -51,13 +51,13 @@ const SELECTORS = {
     successMessage: 'internal:text="Record successfully Updated."i',
   },
   statusPage: {
-    policyNumberField: 'input[type="text"]',
+    policyNumberField: 'internal:role=textbox[name="PolicyNo"i]',
     regNumberField: 'internal:role=textbox[name="txtregno"i]',
-    searchButton:
-      'button:has-text("Search"), input[type="submit"][value="Search"]',
+    searchPolicyButton: "btnpolicyno",
+    searchRegButton: "#btnregno",
     tables: "table",
     resetButton: 'internal:role=link[name="Reset"i]',
-    resetSuccess: "#lblmessage",
+    resetMessage: "#lblmessage",
   },
 };
 
@@ -453,109 +453,129 @@ export async function openEPINPolicyStatusPage(page: Page): Promise<void> {
 
 export async function searchEPINPolicyStatus(
   page: Page,
-  policyNumber: string,
+  lookupValue: string,
+  lookupType: "policy_number" | "registration",
 ): Promise<void> {
-  log(`Searching E-PIN policy status for: ${policyNumber}`);
+  log(`Searching E-PIN policy status by ${lookupType}: ${lookupValue}`);
 
-  const policyField = page
-    .locator(SELECTORS.statusPage.policyNumberField)
-    .first();
-  await policyField.waitFor({ state: "visible", timeout: 15000 });
-  await policyField.fill("");
-  await policyField.fill(policyNumber);
+  const searchField =
+    lookupType === "registration"
+      ? page.locator(SELECTORS.statusPage.regNumberField).first()
+      : page.locator(SELECTORS.statusPage.policyNumberField).first();
+  await searchField.waitFor({ state: "visible", timeout: 15000 });
+  await searchField.fill("");
+  await searchField.fill(lookupValue);
 
-  const searchButton = page.locator(SELECTORS.statusPage.searchButton).first();
+  const rawSearchButtonSelector =
+    lookupType === "registration"
+      ? SELECTORS.statusPage.searchRegButton
+      : SELECTORS.statusPage.searchPolicyButton;
+  const searchButtonSelector = normalizeStatusPageSelector(
+    rawSearchButtonSelector,
+  );
+  const searchButton = page.locator(searchButtonSelector).first();
   await searchButton.click();
 
   await page
     .waitForLoadState("networkidle", { timeout: 15000 })
     .catch(() => undefined);
-  await page
-    .getByText("Trail Date", { exact: false })
-    .waitFor({ state: "visible", timeout: 15000 })
-    .catch(async () => {
-      await page
-        .getByText("Reset Push", { exact: false })
-        .waitFor({ state: "visible", timeout: 15000 });
-    });
+  await Promise.race([
+    page
+      .getByText("Trail Date", { exact: false })
+      .waitFor({ state: "visible", timeout: 15000 }),
+    page
+      .getByText("Reset Push", { exact: false })
+      .waitFor({ state: "visible", timeout: 15000 }),
+    page.waitForSelector(SELECTORS.statusPage.resetMessage, { timeout: 15000 }),
+  ]).catch(() => undefined);
 }
 
 export async function extractEPINPolicyStatus(
   page: Page,
-  policyNumber: string,
+  lookupValue: string,
+  lookupType: "policy_number" | "registration",
 ): Promise<PolicyStatusResult> {
-  const { summaryRows, trailRows } = await page.evaluate(() => {
-    const tables = Array.from(document.querySelectorAll("table"));
-    const extractCells = (row: HTMLTableRowElement) =>
-      Array.from(row.querySelectorAll("th,td")).map(
-        (cell) => cell.textContent?.trim() || "",
-      );
+  const { summaryRows, trailRows, message } = await page.evaluate(
+    ({ resetMessageSelector }) => {
+      const tables = Array.from(document.querySelectorAll("table"));
+      const extractCells = (row: HTMLTableRowElement) =>
+        Array.from(row.querySelectorAll("th,td")).map(
+          (cell) => cell.textContent?.trim() || "",
+        );
 
-    let summaryRows: PolicyStatusSummaryRow[] = [];
-    let trailRows: PolicyStatusTrailRow[] = [];
+      let summaryRows: PolicyStatusSummaryRow[] = [];
+      let trailRows: PolicyStatusTrailRow[] = [];
+      const message =
+        document.querySelector(resetMessageSelector)?.textContent?.trim() || "";
 
-    for (const table of tables) {
-      const rows = Array.from(table.querySelectorAll("tr"));
-      if (rows.length < 2) continue;
+      for (const table of tables) {
+        const rows = Array.from(table.querySelectorAll("tr"));
+        if (rows.length < 2) continue;
 
-      const headers = extractCells(rows[0]).map((value) => value.toLowerCase());
-      const hasSummaryHeaders =
-        headers.includes("policyno") &&
-        headers.includes("regno") &&
-        headers.includes("coverdate");
-      const hasTrailHeaders =
-        headers.includes("trail date") &&
-        headers.includes("time") &&
-        headers.includes("response");
+        const headers = extractCells(rows[0]).map((value) =>
+          value.toLowerCase(),
+        );
+        const hasSummaryHeaders =
+          headers.includes("policyno") &&
+          headers.includes("regno") &&
+          headers.includes("coverdate");
+        const hasTrailHeaders =
+          headers.includes("trail date") &&
+          headers.includes("time") &&
+          headers.includes("response");
 
-      if (hasSummaryHeaders) {
-        summaryRows = rows
-          .slice(1)
-          .map((row) => {
-            const cells = Array.from(row.querySelectorAll("td"));
-            if (cells.length < 7) return null;
+        if (hasSummaryHeaders) {
+          summaryRows = rows
+            .slice(1)
+            .map((row) => {
+              const cells = Array.from(row.querySelectorAll("td"));
+              if (cells.length < 7) return null;
 
-            return {
-              policyNo: cells[1]?.textContent?.trim() || "",
-              regNo: cells[2]?.textContent?.trim() || "",
-              coverDate: cells[3]?.textContent?.trim() || "",
-              vehicleMake: cells[4]?.textContent?.trim() || "",
-              vehicleModel: cells[5]?.textContent?.trim() || "",
-              response: cells[6]?.textContent?.trim() || "",
-              canReset: Boolean(
-                cells[0]?.querySelector(
-                  "button, input[type='button'], input[type='submit'], a",
+              return {
+                policyNo: cells[1]?.textContent?.trim() || "",
+                regNo: cells[2]?.textContent?.trim() || "",
+                coverDate: cells[3]?.textContent?.trim() || "",
+                vehicleMake: cells[4]?.textContent?.trim() || "",
+                vehicleModel: cells[5]?.textContent?.trim() || "",
+                response: cells[6]?.textContent?.trim() || "",
+                canReset: Boolean(
+                  cells[0]?.querySelector(
+                    "button, input[type='button'], input[type='submit'], a",
+                  ),
                 ),
-              ),
-            };
-          })
-          .filter(Boolean) as PolicyStatusSummaryRow[];
+              };
+            })
+            .filter(Boolean) as PolicyStatusSummaryRow[];
+        }
+
+        if (hasTrailHeaders) {
+          trailRows = rows
+            .slice(1)
+            .map((row) => {
+              const cells = Array.from(row.querySelectorAll("td"));
+              if (cells.length < 5) return null;
+
+              return {
+                trailDate: cells[0]?.textContent?.trim() || "",
+                time: cells[1]?.textContent?.trim() || "",
+                policyNo: cells[2]?.textContent?.trim() || "",
+                response: cells[3]?.textContent?.trim() || "",
+                server: cells[4]?.textContent?.trim() || "",
+              };
+            })
+            .filter(Boolean) as PolicyStatusTrailRow[];
+        }
       }
 
-      if (hasTrailHeaders) {
-        trailRows = rows
-          .slice(1)
-          .map((row) => {
-            const cells = Array.from(row.querySelectorAll("td"));
-            if (cells.length < 5) return null;
-
-            return {
-              trailDate: cells[0]?.textContent?.trim() || "",
-              time: cells[1]?.textContent?.trim() || "",
-              policyNo: cells[2]?.textContent?.trim() || "",
-              response: cells[3]?.textContent?.trim() || "",
-              server: cells[4]?.textContent?.trim() || "",
-            };
-          })
-          .filter(Boolean) as PolicyStatusTrailRow[];
-      }
-    }
-
-    return { summaryRows, trailRows };
-  });
+      return { summaryRows, trailRows, message };
+    },
+    { resetMessageSelector: SELECTORS.statusPage.resetMessage },
+  );
 
   return {
-    policyNumber,
+    lookupValue,
+    lookupType,
+    message: message || undefined,
     summaryRows,
     trailRows,
   };
@@ -578,10 +598,10 @@ export async function resetEPINPolicyStatusPush(
 
   await waitForOverlayToDisappear(page, "resetEPINPolicyStatusPush");
   await page
-    .waitForSelector(SELECTORS.statusPage.resetSuccess, { timeout: 20000 })
+    .waitForSelector(SELECTORS.statusPage.resetMessage, { timeout: 20000 })
     .catch(async () => {
       await page.waitForLoadState("networkidle", { timeout: 20000 });
-      await page.waitForSelector(SELECTORS.statusPage.resetSuccess, {
+      await page.waitForSelector(SELECTORS.statusPage.resetMessage, {
         timeout: 10000,
       });
     });
@@ -595,6 +615,10 @@ function getEpinRegistrationField(page: Page) {
     name: "Rgeistration No",
     exact: true,
   });
+}
+
+function normalizeStatusPageSelector(selector: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(selector) ? `#${selector}` : selector;
 }
 
 async function getSelectedOptionText(

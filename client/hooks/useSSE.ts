@@ -44,14 +44,17 @@ interface PolicyStatusTrailRow {
 }
 
 interface PolicyStatusResult {
-  policyNumber: string;
+  lookupValue: string;
+  lookupType: 'policy_number' | 'registration';
+  message?: string;
   summaryRows: PolicyStatusSummaryRow[];
   trailRows: PolicyStatusTrailRow[];
 }
 
 export interface PolicyStatusTaskState {
   id: string;
-  policyNumber: string;
+  lookupValue: string;
+  lookupType: 'policy_number' | 'registration';
   steps: TaskStepState[];
   status: 'running' | 'awaiting_user_action' | 'completed' | 'failed';
   result?: PolicyStatusResult;
@@ -176,13 +179,14 @@ export function useSSE() {
             const next = new Map(prev);
             next.set(taskId, {
               id: taskId,
-              policyNumber: ev.data?.policyNumber || '',
+              lookupValue: ev.data?.lookupValue || '',
+              lookupType: ev.data?.lookupType || 'policy_number',
               steps: [],
               status: 'running',
             });
             return next;
           });
-          addLog('search', `Policy status started: ${ev.data?.policyNumber || ''}`, time);
+          addLog('search', `Policy status started: ${ev.data?.lookupValue || ''}`, time);
 
         } else if (ev.type === 'polstatus:step' && taskId) {
           const s = ev.data?.step;
@@ -208,12 +212,14 @@ export function useSSE() {
                 ...task,
                 status: 'awaiting_user_action',
                 result: ev.data?.result,
+                lookupValue: ev.data?.lookupValue || task.lookupValue,
+                lookupType: ev.data?.lookupType || task.lookupType,
               });
             }
             return next;
           });
           queryClient.invalidateQueries({ queryKey: ['policy-status-logs'] });
-          addLog('pause-circle', `Policy status ready for review: ${ev.data?.policyNumber || ''}`, time);
+          addLog('pause-circle', `Policy status ready for review: ${ev.data?.lookupValue || ''}`, time);
 
         } else if (ev.type === 'polstatus:completed' && taskId) {
           setPolicyStatusTasks((prev) => {
@@ -224,12 +230,14 @@ export function useSSE() {
                 ...task,
                 status: 'completed',
                 result: ev.data?.result || task.result,
+                lookupValue: ev.data?.lookupValue || task.lookupValue,
+                lookupType: ev.data?.lookupType || task.lookupType,
               });
             }
             return next;
           });
           queryClient.invalidateQueries({ queryKey: ['policy-status-logs'] });
-          addLog('check-circle-2', `Policy status closed: ${ev.data?.policyNumber || ''}`, time);
+          addLog('check-circle-2', `Policy status closed: ${ev.data?.lookupValue || ''}`, time);
 
         } else if (ev.type === 'polstatus:failed' && taskId) {
           setPolicyStatusTasks((prev) => {

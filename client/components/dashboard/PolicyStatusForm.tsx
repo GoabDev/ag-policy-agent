@@ -46,7 +46,7 @@ export function PolicyStatusForm({
 }: {
   policyStatusTasks: Map<string, PolicyStatusTaskState>;
 }) {
-  const [policyNumber, setPolicyNumber] = useState('');
+  const [lookupValue, setLookupValue] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const startMutation = useStartPolicyStatus();
   const closeMutation = useClosePolicyStatus();
@@ -72,10 +72,10 @@ export function PolicyStatusForm({
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    const trimmed = policyNumber.trim();
+    const trimmed = lookupValue.trim();
     if (!trimmed) return;
 
-    startMutation.mutate({ policyNumber: trimmed });
+    startMutation.mutate({ lookupValue: trimmed });
   };
 
   const handleCloseTask = async () => {
@@ -105,18 +105,18 @@ export function PolicyStatusForm({
         </CardHeader>
         <CardContent className="space-y-4 p-6">
           <div className="text-[11px] text-muted-foreground">
-            Check E-PIN upload status, review the extracted NIID/NIIP push response, and close the task after confirmation.
+            Check E-PIN upload status by policy number or reg number, review the extracted NIID/NIIP push response, and close the task after confirmation.
           </div>
 
           <form onSubmit={onSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Policy Number
+                Policy / Reg Number
               </label>
               <Input
-                value={policyNumber}
-                onChange={(event) => setPolicyNumber(event.target.value)}
-                placeholder="e.g. P/AG/PMI/26/LAG/C2188302"
+                value={lookupValue}
+                onChange={(event) => setLookupValue(event.target.value)}
+                placeholder="e.g. P/AG/MC1/26/IBD/C2194857 or LEL121VP"
                 className="border-border bg-background focus-visible:ring-primary/50"
               />
             </div>
@@ -147,10 +147,11 @@ export function PolicyStatusForm({
                     className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{task.policyNumber}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{task.lookupValue}</p>
                       <p className="text-[11px] text-muted-foreground">
                         {task.result
-                          ? `${task.result.summaryRows.length} summary row(s), ${task.result.trailRows.length} trail row(s)`
+                          ? task.result.message ||
+                            `${task.result.summaryRows.length} summary row(s), ${task.result.trailRows.length} trail row(s)`
                           : 'Waiting for page data'}
                       </p>
                     </div>
@@ -184,12 +185,17 @@ export function PolicyStatusForm({
               {selectedTask && <StatusBadge status={selectedTask.status} />}
             </div>
             <DialogDescription className="text-xs">
-              {selectedTask?.policyNumber || 'N/A'}
+              {selectedTask?.lookupValue || 'N/A'}
             </DialogDescription>
           </DialogHeader>
 
           {selectedTask?.result && (
             <div className="space-y-4">
+              {selectedTask.result.message && (
+                <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground">
+                  {selectedTask.result.message}
+                </div>
+              )}
               <div>
                 <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Status Table

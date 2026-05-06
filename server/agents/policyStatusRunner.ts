@@ -21,6 +21,14 @@ const activePolicyStatusTasks: Map<string, PolicyStatusTask> = new Map();
 const policyStatusHistory: PolicyStatusTask[] = [];
 const taskWorkers: Map<string, string> = new Map();
 
+function detectPolicyStatusLookupType(
+  lookupValue: string,
+): "policy_number" | "registration" {
+  return /^P\/AG\//i.test(lookupValue.trim())
+    ? "policy_number"
+    : "registration";
+}
+
 function createStep(
   action: string,
   status: "success" | "failed" | "skipped",
@@ -77,6 +85,8 @@ async function executePolicyStatusTask(task: PolicyStatusTask): Promise<void> {
   let worker: Worker | undefined;
 
   try {
+    const lookupType =
+      task.input.lookupType || detectPolicyStatusLookupType(task.input.lookupValue);
     touchWorkActivity("epin");
     worker = await acquireWorker(["epin"]);
     taskWorkers.set(task.id, worker.id);
@@ -85,10 +95,24 @@ async function executePolicyStatusTask(task: PolicyStatusTask): Promise<void> {
     const page = await prepareWorkerEPINStatusPage(worker);
     addStep(task, createStep("E-PIN status page ready", "success"));
 
-    await searchEPINPolicyStatus(page, task.input.policyNumber);
-    addStep(task, createStep(`Search policy status: ${task.input.policyNumber}`, "success"));
+    await searchEPINPolicyStatus(
+      page,
+      task.input.lookupValue,
+      lookupType,
+    );
+    addStep(
+      task,
+      createStep(
+        `Search policy status by ${lookupType}: ${task.input.lookupValue}`,
+        "success",
+      ),
+    );
 
-    task.result = await extractEPINPolicyStatus(page, task.input.policyNumber);
+    task.result = await extractEPINPolicyStatus(
+      page,
+      task.input.lookupValue,
+      lookupType,
+    );
     addStep(
       task,
       createStep(
@@ -102,7 +126,8 @@ async function executePolicyStatusTask(task: PolicyStatusTask): Promise<void> {
     saveTaskLog(task.id, task);
     emitEvent("polstatus:awaiting_action", {
       taskId: task.id,
-      policyNumber: task.input.policyNumber,
+      lookupValue: task.input.lookupValue,
+      lookupType,
       result: task.result,
     });
   } catch (err: any) {
@@ -116,9 +141,15 @@ async function executePolicyStatusTask(task: PolicyStatusTask): Promise<void> {
 }
 
 export function startPolicyStatus(input: PolicyStatusInput): PolicyStatusTask {
+  const normalizedInput: PolicyStatusInput = {
+    lookupValue: input.lookupValue.trim(),
+    lookupType:
+      input.lookupType || detectPolicyStatusLookupType(input.lookupValue),
+  };
+
   const task: PolicyStatusTask = {
     id: uuid(),
-    input,
+    input: normalizedInput,
     status: "running",
     steps: [],
     createdAt: new Date().toISOString(),
@@ -127,9 +158,12 @@ export function startPolicyStatus(input: PolicyStatusInput): PolicyStatusTask {
   activePolicyStatusTasks.set(task.id, task);
   emitEvent("polstatus:started", {
     taskId: task.id,
-    policyNumber: input.policyNumber,
+    lookupValue: normalizedInput.lookupValue,
+    lookupType: normalizedInput.lookupType,
   });
-  log(`Starting policy status task: ${task.id} (${input.policyNumber})`);
+  log(
+    `Starting policy status task: ${task.id} (${normalizedInput.lookupType}: ${normalizedInput.lookupValue})`,
+  );
 
   void executePolicyStatusTask(task);
   return task;
@@ -144,7 +178,8 @@ export async function closePolicyStatus(taskId: string): Promise<boolean> {
   addStep(task, createStep("Policy status view closed", "success"));
   emitEvent("polstatus:completed", {
     taskId: task.id,
-    policyNumber: task.input.policyNumber,
+    lookupValue: task.input.lookupValue,
+    lookupType: task.input.lookupType,
     result: task.result,
   });
 
@@ -170,19 +205,42 @@ export async function resetPolicyStatus(taskId: string): Promise<boolean> {
   }
 
   try {
+    const lookupType =
+      task.input.lookupType || detectPolicyStatusLookupType(task.input.lookupValue);
     task.status = "running";
     touchWorkActivity("epin");
     addStep(task, createStep("Reset requested by user", "success"));
 
     const page = await prepareWorkerEPINStatusPage(worker);
-    await searchEPINPolicyStatus(page, task.input.policyNumber);
-    addStep(task, createStep(`Search policy status: ${task.input.policyNumber}`, "success"));
+    await searchEPINPolicyStatus(
+      page,
+      task.input.lookupValue,
+      lookupType,
+    );
+    addStep(
+      task,
+      createStep(
+        `Search policy status by ${lookupType}: ${task.input.lookupValue}`,
+        "success",
+      ),
+    );
 
-    await resetEPINPolicyStatusPush(page, task.input.policyNumber);
-    addStep(task, createStep(`Reset push clicked for ${task.input.policyNumber}`, "success"));
+    await resetEPINPolicyStatusPush(page, task.input.lookupValue);
+    addStep(
+      task,
+      createStep(`Reset push clicked for ${task.input.lookupValue}`, "success"),
+    );
 
-    await searchEPINPolicyStatus(page, task.input.policyNumber);
-    task.result = await extractEPINPolicyStatus(page, task.input.policyNumber);
+    await searchEPINPolicyStatus(
+      page,
+      task.input.lookupValue,
+      lookupType,
+    );
+    task.result = await extractEPINPolicyStatus(
+      page,
+      task.input.lookupValue,
+      lookupType,
+    );
     addStep(
       task,
       createStep(
@@ -196,7 +254,8 @@ export async function resetPolicyStatus(taskId: string): Promise<boolean> {
     task.completedAt = new Date().toISOString();
     emitEvent("polstatus:completed", {
       taskId: task.id,
-      policyNumber: task.input.policyNumber,
+      lookupValue: task.input.lookupValue,
+      lookupType,
       result: task.result,
     });
 

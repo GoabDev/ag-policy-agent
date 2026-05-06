@@ -414,7 +414,12 @@ app.post("/api/policy-push/:taskId/cancel", (req, res) => {
 app.get("/api/policy-push/logs", (req, res) => {
   const running = getRunningPushTasks();
   const history = getPushTaskHistory();
-  const fileLogs = loadTaskLogs().filter((t) => t.input); // Only push logs
+  const fileLogs = loadTaskLogs().filter(
+    (t) =>
+      t.input &&
+      typeof t.input.method === "string" &&
+      (t.input.method === "policy_number" || t.input.method === "date_range"),
+  ); // Only push logs
 
   // Merge all sources, deduplicate by id (in-memory takes precedence)
   const seen = new Set<string>();
@@ -433,17 +438,23 @@ app.get("/api/policy-push/logs", (req, res) => {
 
 app.post("/api/pol-status/start", (req, res) => {
   try {
-    const input: PolicyStatusInput = req.body;
+    const rawLookupValue =
+      req.body.lookupValue || req.body.policyNumber || req.body.registrationNumber;
+    const input: PolicyStatusInput = {
+      lookupValue: typeof rawLookupValue === "string" ? rawLookupValue : "",
+      lookupType: req.body.lookupType,
+    };
 
-    if (!input.policyNumber || input.policyNumber.trim().length === 0) {
+    if (!input.lookupValue || input.lookupValue.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: "Missing required field: policyNumber",
+        error: "Missing required field: lookupValue",
       });
     }
 
     const task = startPolicyStatus({
-      policyNumber: input.policyNumber.trim(),
+      lookupValue: input.lookupValue.trim(),
+      lookupType: input.lookupType,
     });
 
     res.json({
@@ -490,7 +501,13 @@ app.post("/api/pol-status/:taskId/reset", async (req, res) => {
 
 app.get("/api/pol-status/logs", (req, res) => {
   const history = getPolicyStatusHistory();
-  const fileLogs = loadTaskLogs().filter((t) => t.input && t.result && !t.correction);
+  const fileLogs = loadTaskLogs().filter(
+    (t) =>
+      t.input &&
+      typeof t.input.lookupValue === "string" &&
+      t.result &&
+      !t.correction,
+  );
   const seen = new Set(history.map((t) => t.id));
   const merged = [...history, ...fileLogs.filter((t) => !seen.has(t.id))];
   res.json({ success: true, data: merged });

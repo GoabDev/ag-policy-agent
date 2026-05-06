@@ -66,7 +66,7 @@ export const stopAllSessions = () => api.post('/api/sessions/stop-all');
 // Cancellation
 export const cancelCorrection = (taskId: string) => api.post(`/api/corrections/${taskId}/cancel`);
 export const cancelPolicyPush = (taskId: string) => api.post(`/api/policy-push/${taskId}/cancel`);
-export const startPolicyStatus = (data: { policyNumber: string }) =>
+export const startPolicyStatus = (data: { lookupValue: string }) =>
   api.post('/api/pol-status/start', data);
 export const closePolicyStatus = (taskId: string) =>
   api.post(`/api/pol-status/${taskId}/close`);

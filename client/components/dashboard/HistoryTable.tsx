@@ -12,9 +12,11 @@ import {
   Ban,
   Upload,
   Wrench,
+  Search,
   Copy,
   Check,
 } from 'lucide-react';
+import { usePolicyStatusLogs } from '@/queries/usePolicyStatus';
 import {
   Table,
   TableBody,
@@ -258,6 +260,10 @@ const pushMethodLabel = (method: string) => {
   return { policy_number: 'Single Policy', date_range: 'Date Range' }[method] || method;
 };
 
+const policyStatusLookupLabel = (lookupType?: string) => {
+  return lookupType === 'registration' ? 'Reg Number' : 'Policy Number';
+};
+
 function CorrectionDetailDialog({
   item,
   open,
@@ -473,6 +479,154 @@ function PushDetailDialog({
   );
 }
 
+function PolicyStatusDetailDialog({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: any;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!item) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-6xl">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <DialogTitle className="text-base">Policy Status Details</DialogTitle>
+            <StatusBadge status={item.status} />
+          </div>
+          <DialogDescription className="text-xs">
+            {item.result?.lookupValue || item.input?.lookupValue || 'N/A'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-0.5 rounded-lg border border-border p-3">
+            <DetailRow
+              label="Lookup Type"
+              value={policyStatusLookupLabel(item.result?.lookupType || item.input?.lookupType)}
+            />
+            <DetailRow
+              label="Lookup Value"
+              value={item.result?.lookupValue || item.input?.lookupValue}
+              copyable
+            />
+            <DetailRow label="Started" value={new Date(item.createdAt).toLocaleString()} />
+            {item.completedAt && (
+              <DetailRow label="Completed" value={new Date(item.completedAt).toLocaleString()} />
+            )}
+            {item.error && <DetailRow label="Error" value={item.error} copyable />}
+          </div>
+
+          {item.result?.message && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground">
+              {item.result.message}
+            </div>
+          )}
+
+          {item.result?.summaryRows?.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Status Table
+              </h4>
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead>Policy No</TableHead>
+                      <TableHead>Reg No</TableHead>
+                      <TableHead>Cover Date</TableHead>
+                      <TableHead>Make</TableHead>
+                      <TableHead>Model</TableHead>
+                      <TableHead>Response</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {item.result.summaryRows.map((row: any, index: number) => (
+                      <TableRow key={`${row.policyNo}-${index}`}>
+                        <TableCell>{row.policyNo}</TableCell>
+                        <TableCell>{row.regNo}</TableCell>
+                        <TableCell>{row.coverDate}</TableCell>
+                        <TableCell>{row.vehicleMake}</TableCell>
+                        <TableCell>{row.vehicleModel}</TableCell>
+                        <TableCell>{row.response}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {item.result?.trailRows?.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Trail Table
+              </h4>
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead>Trail Date</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Policy No</TableHead>
+                      <TableHead>Response</TableHead>
+                      <TableHead>Server</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {item.result.trailRows.map((row: any, index: number) => (
+                      <TableRow key={`${row.policyNo}-${row.time}-${index}`}>
+                        <TableCell>{row.trailDate}</TableCell>
+                        <TableCell>{row.time}</TableCell>
+                        <TableCell>{row.policyNo}</TableCell>
+                        <TableCell>{row.response}</TableCell>
+                        <TableCell>{row.server}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {item.steps?.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Steps ({item.steps.length})
+              </h4>
+              <div className="divide-y divide-border/50 rounded-lg border border-border">
+                {item.steps.map((s: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 p-2.5 text-xs">
+                    <StepStatusIcon status={s.status} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <Badge className="h-4 bg-primary/20 px-1 text-[8px] text-primary">
+                          {(s.site || '').toUpperCase()}
+                        </Badge>
+                        <span className="font-medium text-foreground">{s.action}</span>
+                      </div>
+                      {s.details && <p className="mt-0.5 break-all text-muted-foreground">{s.details}</p>}
+                    </div>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {new Date(s.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter showCloseButton />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CorrectionHistoryTab() {
   const { data: history, isLoading, refetch } = useLogs();
   const [selected, setSelected] = useState<any>(null);
@@ -657,6 +811,102 @@ function PushHistoryTab() {
   );
 }
 
+function PolicyStatusHistoryTab() {
+  const { data: history, isLoading, refetch } = usePolicyStatusLogs();
+  const [selected, setSelected] = useState<any>(null);
+
+  return (
+    <div>
+      <div className="flex justify-end border-b border-border px-4 py-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => refetch()}
+          disabled={isLoading}
+        >
+          <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader className="bg-muted/50">
+            <TableRow className="border-border">
+              <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Lookup
+              </TableHead>
+              <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Value
+              </TableHead>
+              <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Result
+              </TableHead>
+              <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Date
+              </TableHead>
+              <TableHead className="text-right text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Status
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {history?.data?.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                  No policy status history yet
+                </TableCell>
+              </TableRow>
+            ) : (
+              history?.data?.slice(0, 10).map((h: any) => (
+                <TableRow
+                  key={h.id}
+                  className="cursor-pointer border-border transition-colors hover:bg-accent/50"
+                  onClick={() => setSelected(h)}
+                >
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className="bg-secondary font-mono text-[10px] text-secondary-foreground"
+                    >
+                      {policyStatusLookupLabel(h.result?.lookupType || h.input?.lookupType)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm font-medium text-foreground">
+                    {h.result?.lookupValue || h.input?.lookupValue || '—'}
+                  </TableCell>
+                  <TableCell className="max-w-[250px] text-xs text-muted-foreground">
+                    {h.result?.message ? (
+                      <span className="line-clamp-2">{h.result.message}</span>
+                    ) : h.result?.summaryRows?.[0]?.response ? (
+                      <span className="line-clamp-2">{h.result.summaryRows[0].response}</span>
+                    ) : h.error ? (
+                      <span className="line-clamp-2 text-destructive/80">{h.error}</span>
+                    ) : (
+                      <span>—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-[11px] text-muted-foreground">
+                    {new Date(h.createdAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <StatusBadge status={h.status} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <PolicyStatusDetailDialog
+        item={selected}
+        open={!!selected}
+        onOpenChange={(open) => !open && setSelected(null)}
+      />
+    </div>
+  );
+}
+
 export function HistoryTable() {
   return (
     <Card className="shadow-xl lg:col-span-2 border-border bg-card">
@@ -669,6 +919,10 @@ export function HistoryTable() {
                 <Wrench className="h-3 w-3" />
                 Correction History
               </TabsTrigger>
+              <TabsTrigger value="polstatus" className="gap-1.5 px-3 text-xs">
+                <Search className="h-3 w-3" />
+                Pol Status History
+              </TabsTrigger>
               <TabsTrigger value="pushes" className="gap-1.5 px-3 text-xs">
                 <Upload className="h-3 w-3" />
                 Push History
@@ -679,6 +933,9 @@ export function HistoryTable() {
         <CardContent className="p-0">
           <TabsContent value="corrections" className="mt-0">
             <CorrectionHistoryTab />
+          </TabsContent>
+          <TabsContent value="polstatus" className="mt-0">
+            <PolicyStatusHistoryTab />
           </TabsContent>
           <TabsContent value="pushes" className="mt-0">
             <PushHistoryTab />
