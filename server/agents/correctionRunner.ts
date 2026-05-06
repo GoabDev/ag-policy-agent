@@ -22,6 +22,7 @@ import { acquireWorker, releaseWorker } from '../browser/workerPool';
 import { touchSession, touchWorkActivity } from '../browser/controller';
 import { config } from '../config';
 import { getPolicyChannel } from '../utils/policyClassifier';
+import { NIIP_NAVIGATION_TIMEOUT_MS } from '../browser/niipTimeouts';
 
 // Running tasks (supports multiple concurrent tasks)
 const runningTasks: Map<string, Task> = new Map();
@@ -167,7 +168,7 @@ async function prepareWorkerNIIPPage(worker: Worker): Promise<Page> {
     await page.fill('input[name="Username"]', config.niip.username);
     await page.fill('input[name="Password"]', config.niip.password);
     await page.click('button[type="submit"]');
-    await page.goto(config.niip.parkUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.goto(config.niip.parkUrl, { waitUntil: 'domcontentloaded', timeout: NIIP_NAVIGATION_TIMEOUT_MS });
     return page;
   }
 
@@ -176,7 +177,7 @@ async function prepareWorkerNIIPPage(worker: Worker): Promise<Page> {
     return page;
   }
 
-  await page.goto(config.niip.parkUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.goto(config.niip.parkUrl, { waitUntil: 'domcontentloaded', timeout: NIIP_NAVIGATION_TIMEOUT_MS });
   touchSession('niip');
   return page;
 }
