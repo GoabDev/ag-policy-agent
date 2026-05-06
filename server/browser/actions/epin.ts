@@ -2,6 +2,8 @@ import { Page } from "playwright";
 import { config } from "../../config";
 import { getPage, saveSession, touchSession } from "../controller";
 import { log } from "../../utils/logger";
+import { SwapCorrectionInput } from "../../types";
+import { normalizeVehicleColor } from "../../utils/vehicleOptions";
 
 const SELECTORS = {
   login: {
@@ -26,10 +28,16 @@ const SELECTORS = {
   policy: {
     firstNameField: 'internal:role=textbox[name="First Name"i]',
     lastNameField: 'internal:role=textbox[name="Last Name"i]',
+    engineField: 'internal:role=textbox[name="Engine No"i]',
     chassisNumberField: 'internal:role=textbox[name="Chasis No"i]',
     regNumberField: 'internal:role=textbox[name="Rgeistration No"i]',
+    emailField: 'internal:role=textbox[name="Email"i]',
+    phoneField: 'internal:role=textbox[name="Mobile Phone"i]',
+    addressField: 'internal:role=textbox[name="Address"i]',
     vehicleMakeField: 'internal:label="Vehicle Make"i',
     vehicleModelField: 'internal:label="Vehicle Model"i',
+    vehicleMakeModelField: 'internal:label="Vehicle Make & [Model]"i',
+    // vehicleModelField: 'internal:label="Vehicle Model"i',
     vehicleYearField: 'internal:label="Vehicle Year"i',
     vehicleColorField: 'internal:label="Vehicle Color"i',
     vehicleValueTypeField: 'internal:label="Vehicle Value Type"i',
@@ -177,20 +185,15 @@ export async function correctEPINVehicleMake(
   newMake: string,
   newModel: string,
 ): Promise<{ oldMake: string; oldModel: string }> {
-  const oldMake = await page.$eval(
-    SELECTORS.policy.vehicleMakeField,
-    (el) => (el as HTMLSelectElement).value,
+  const oldCombined = await getSelectedOptionText(
+    page,
+    SELECTORS.policy.vehicleMakeModelField,
   );
-  const oldModel = await page.$eval(
-    SELECTORS.policy.vehicleModelField,
-    (el) => (el as HTMLSelectElement).value,
-  );
-  log(`Old E-PIN vehicle: ${oldMake} ${oldModel}`);
+  log(`Old E-PIN vehicle: ${oldCombined}`);
   log(`Correcting E-PIN vehicle make to: ${newMake} and model to: ${newModel}`);
 
-  await page.selectOption(SELECTORS.policy.vehicleMakeField, newMake);
-  await waitForOverlayToDisappear(page, "correctEPINVehicleMake:makePostback");
-  await page.selectOption(SELECTORS.policy.vehicleModelField, newModel);
+  const optionLabel = await resolveEpinMakeModelOption(page, newMake, newModel);
+  await page.selectOption(SELECTORS.policy.vehicleMakeModelField, { label: optionLabel });
   await page.click(SELECTORS.policy.saveButton);
 
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
@@ -206,7 +209,7 @@ export async function correctEPINVehicleMake(
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
   log("Vehicle make correction saved on E-PIN");
-  return { oldMake, oldModel };
+  return { oldMake: oldCombined, oldModel: "" };
 }
 
 export async function correctEPINRegAndChassis(
@@ -278,6 +281,124 @@ export async function correctEPINChassis(
   return oldChassisNumber;
 }
 
+export async function applyEPINSwap(
+  page: Page,
+  input: SwapCorrectionInput,
+): Promise<Record<string, string>> {
+  const previousData: Record<string, string> = {};
+  let hasChanges = false;
+
+  if (input.firstName) {
+    previousData.firstName = await page.inputValue(SELECTORS.policy.firstNameField);
+    await page.fill(SELECTORS.policy.firstNameField, "");
+    await page.fill(SELECTORS.policy.firstNameField, input.firstName);
+    hasChanges = true;
+  }
+
+  if (input.lastName) {
+    previousData.lastName = await page.inputValue(SELECTORS.policy.lastNameField);
+    await page.fill(SELECTORS.policy.lastNameField, "");
+    await page.fill(SELECTORS.policy.lastNameField, input.lastName);
+    hasChanges = true;
+  }
+
+  if (input.email) {
+    previousData.email = await page.inputValue(SELECTORS.policy.emailField);
+    await page.fill(SELECTORS.policy.emailField, "");
+    await page.fill(SELECTORS.policy.emailField, input.email);
+    hasChanges = true;
+  }
+
+  if (input.phone) {
+    previousData.phone = await page.inputValue(SELECTORS.policy.phoneField);
+    await page.fill(SELECTORS.policy.phoneField, "");
+    await page.fill(SELECTORS.policy.phoneField, input.phone);
+    hasChanges = true;
+  }
+
+  if (input.engineNumber) {
+    previousData.engineNumber = await page.inputValue(SELECTORS.policy.engineField);
+    await page.fill(SELECTORS.policy.engineField, "");
+    await page.fill(SELECTORS.policy.engineField, input.engineNumber);
+    hasChanges = true;
+  }
+
+  if (input.newRegistrationNumber) {
+    previousData.registrationNumber = await getEpinRegistrationField(page).inputValue();
+    await getEpinRegistrationField(page).fill("");
+    await getEpinRegistrationField(page).fill(input.newRegistrationNumber);
+    hasChanges = true;
+  }
+
+  if (input.newChassisNumber) {
+    previousData.chassisNumber = await page.inputValue(SELECTORS.policy.chassisNumberField);
+    await page.fill(SELECTORS.policy.chassisNumberField, "");
+    await page.fill(SELECTORS.policy.chassisNumberField, input.newChassisNumber);
+    hasChanges = true;
+  }
+
+  if (input.vehicleColor) {
+    const normalizedColor = normalizeVehicleColor(input.vehicleColor);
+    previousData.vehicleColor = await getSelectedOptionText(
+      page,
+      SELECTORS.policy.vehicleColorField,
+    );
+    await page.selectOption(SELECTORS.policy.vehicleColorField, {
+      label: normalizedColor,
+    });
+    hasChanges = true;
+  }
+
+  if (input.newVehicleMake && input.newVehicleModel) {
+    previousData.vehicleMakeModel = await getSelectedOptionText(
+      page,
+      SELECTORS.policy.vehicleMakeModelField,
+    );
+    const optionLabel = await resolveEpinMakeModelOption(
+      page,
+      input.newVehicleMake,
+      input.newVehicleModel,
+    );
+    await page.selectOption(SELECTORS.policy.vehicleMakeModelField, {
+      label: optionLabel,
+    });
+    hasChanges = true;
+  }
+
+  if (input.vehicleYear) {
+    previousData.vehicleYear = await page.inputValue(SELECTORS.policy.vehicleYearField).catch(() => "");
+    await page.fill(SELECTORS.policy.vehicleYearField, "");
+    await page.fill(SELECTORS.policy.vehicleYearField, input.vehicleYear);
+    hasChanges = true;
+  }
+
+  if (input.address) {
+    previousData.address = await page.inputValue(SELECTORS.policy.addressField);
+    await page.fill(SELECTORS.policy.addressField, "");
+    await page.fill(SELECTORS.policy.addressField, input.address);
+    hasChanges = true;
+  }
+
+  if (!hasChanges) {
+    throw new Error("No E-PIN swap fields were provided");
+  }
+
+  await page.click(SELECTORS.policy.saveButton);
+  await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
+    timeout: 15000,
+  });
+  await page.click(SELECTORS.confirmationPanel.confirmButton);
+  await page.waitForTimeout(1000);
+  await waitForOverlayToDisappear(page, "applyEPINSwap");
+  await page.waitForSelector(SELECTORS.policy.successMessage, {
+    timeout: 15000,
+  });
+  await page.click(SELECTORS.confirmationPanel.closeButton);
+
+  log("Swap correction saved on E-PIN");
+  return previousData;
+}
+
 export async function getEPINPolicyPage(): Promise<Page> {
   const page = await getPage("epin");
   const currentUrl = page.url();
@@ -295,6 +416,78 @@ function getEpinRegistrationField(page: Page) {
     name: "Rgeistration No",
     exact: true,
   });
+}
+
+async function getSelectedOptionText(
+  page: Page,
+  selector: string,
+): Promise<string> {
+  return page.$eval(selector, (el) => {
+    const select = el as HTMLSelectElement;
+    return select.selectedOptions[0]?.text?.trim() || select.value || "";
+  });
+}
+
+function normalizeVehicleToken(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+async function resolveEpinMakeModelOption(
+  page: Page,
+  make: string,
+  model: string,
+): Promise<string> {
+  const normalizedMake = normalizeVehicleToken(make);
+  const normalizedModel = normalizeVehicleToken(model);
+
+  const options = await page.$eval(
+    SELECTORS.policy.vehicleMakeModelField,
+    (el) =>
+      Array.from((el as HTMLSelectElement).options).map((option) =>
+        option.text.trim(),
+      ),
+  );
+
+  const ranked = options
+    .map((option) => {
+      const [optionMakeRaw, optionModelRaw = ""] = option.split(":");
+      const optionMake = normalizeVehicleToken(optionMakeRaw);
+      const optionModel = normalizeVehicleToken(optionModelRaw);
+      const optionFull = normalizeVehicleToken(option);
+
+      let score = 0;
+      if (optionMake === normalizedMake) score += 100;
+      else if (optionMake.includes(normalizedMake) || normalizedMake.includes(optionMake)) score += 60;
+
+      if (optionModel === normalizedModel) score += 100;
+      else if (optionModel.includes(normalizedModel) || normalizedModel.includes(optionModel)) score += 60;
+
+      if (optionFull.includes(normalizedMake)) score += 20;
+      if (optionFull.includes(normalizedModel)) score += 20;
+
+      return { option, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (ranked.length === 0) {
+    throw new Error(
+      `No E-PIN vehicle make/model option matched make "${make}" and model "${model}"`,
+    );
+  }
+
+  if (ranked.length === 1 || ranked[0].score > ranked[1].score) {
+    return ranked[0].option;
+  }
+
+  const topCandidates = ranked
+    .filter((entry) => entry.score === ranked[0].score)
+    .slice(0, 5)
+    .map((entry) => entry.option);
+
+  throw new Error(
+    `E-PIN vehicle make/model was ambiguous for make "${make}" and model "${model}". Candidates: ${topCandidates.join(" | ")}`,
+  );
 }
 
 async function waitForOverlayToDisappear(

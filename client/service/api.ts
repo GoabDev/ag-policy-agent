@@ -8,6 +8,14 @@ export const runCorrection = (data: any) => {
     type: data.type, 
     policyNumber: data.policyNumber 
   };
+
+  const assignIfPresent = (key: string, value: unknown) => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      body[key] = trimmed;
+    }
+  };
   
   if (data.type === 'name') {
     body.firstName = data.firstName;
@@ -22,6 +30,19 @@ export const runCorrection = (data: any) => {
     body.newChassisNumber = data.newChassisNumber;
   } else if (data.type === 'chassis') {
     body.newChassisNumber = data.newChassisNumber;
+  } else if (data.type === 'swap') {
+    assignIfPresent('firstName', data.firstName);
+    assignIfPresent('lastName', data.lastName);
+    assignIfPresent('email', data.email);
+    assignIfPresent('phone', data.phone);
+    assignIfPresent('engineNumber', data.engineNumber);
+    assignIfPresent('newChassisNumber', data.newChassisNumber);
+    assignIfPresent('newRegistrationNumber', data.newRegistrationNumber);
+    assignIfPresent('vehicleColor', data.vehicleColor);
+    assignIfPresent('newVehicleMake', data.newVehicleMake);
+    assignIfPresent('newVehicleModel', data.newVehicleModel);
+    assignIfPresent('vehicleYear', data.vehicleYear);
+    assignIfPresent('address', data.address);
   }
 
   return api.post('/api/corrections/run', body);

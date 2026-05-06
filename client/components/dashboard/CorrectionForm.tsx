@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useRunCorrection, useCancelCorrection } from '@/queries/useCorrections';
 import { getVehicleData, refreshVehicleData } from '@/service/api';
 import type { TaskState } from '@/hooks/useSSE';
+import { VEHICLE_COLOR_OPTIONS } from '@/lib/vehicle-options';
 
 
 export function CorrectionForm({
@@ -40,12 +41,24 @@ export function CorrectionForm({
     watch,
     reset,
     formState: { errors }
-  } = useForm<CorrectionFormValues>({
+  } = useForm<any>({
     resolver: zodResolver(correctionSchema),
     defaultValues: {
       type: 'registration',
       policyNumber: '',
-      newValue: ''
+      newValue: '',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      engineNumber: '',
+      newChassisNumber: '',
+      newRegistrationNumber: '',
+      vehicleColor: '',
+      newVehicleMake: '',
+      newVehicleModel: '',
+      vehicleYear: '',
+      address: '',
     }
   });
 
@@ -108,18 +121,21 @@ export function CorrectionForm({
           onValueChange={(v) => setValue('type', v as any)}
           className="mb-6"
         >
-          <TabsList className="grid grid-cols-5 bg-background p-1 h-10 border border-border">
+          <TabsList className="grid grid-cols-6 bg-background p-1 h-10 border border-border">
             <TabsTrigger value="registration" className="text-xs data-[state=active]:bg-secondary">Reg No.</TabsTrigger>
             <TabsTrigger value="name" className="text-xs data-[state=active]:bg-secondary">Name</TabsTrigger>
             <TabsTrigger value="vehicle_make" className="text-xs data-[state=active]:bg-secondary">Vehicle</TabsTrigger>
             <TabsTrigger value="reg_and_chassis" className="text-xs data-[state=active]:bg-secondary">Reg & Chas</TabsTrigger>
             <TabsTrigger value="chassis" className="text-xs data-[state=active]:bg-secondary">Chassis</TabsTrigger>
+            <TabsTrigger value="swap" className="text-xs data-[state=active]:bg-secondary">Swap</TabsTrigger>
           </TabsList>
         </Tabs>
 
         <div className="text-[11px] text-muted-foreground mb-6 flex items-center gap-2">
           {(selectedType === 'registration' || selectedType === 'reg_and_chassis')
             ? <><RefreshCw className="w-3 h-3" /> This correction updates both A&G and NIID</>
+            : selectedType === 'swap'
+            ? <><RefreshCw className="w-3 h-3" /> Swap updates only the filled fields. Empty fields are ignored.</>
             : <><Pin className="w-3 h-3" /> This correction updates A&G platform only</>}
         </div>
 
@@ -131,7 +147,7 @@ export function CorrectionForm({
               placeholder="Enter policy number"
               className="bg-background border-border focus-visible:ring-primary/50"
             />
-            {errors.policyNumber && <p className="text-[10px] text-destructive">{errors.policyNumber.message}</p>}
+            {errors.policyNumber && <p className="text-[10px] text-destructive">{String(errors.policyNumber.message)}</p>}
           </div>
 
           {selectedType === 'registration' && (
@@ -280,6 +296,70 @@ export function CorrectionForm({
                   <p className="text-[10px] text-destructive">{(errors as any).newChassisNumber.message}</p>
                 )}
               </div>
+            </>
+          )}
+
+          {selectedType === 'swap' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">First Name</label>
+                  <Input {...register('firstName')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Last Name</label>
+                  <Input {...register('lastName')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Email</label>
+                  <Input {...register('email')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Phone</label>
+                  <Input {...register('phone')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Engine Number</label>
+                  <Input {...register('engineNumber')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vehicle Color</label>
+                  <Combobox
+                    options={VEHICLE_COLOR_OPTIONS}
+                    value={watch('vehicleColor') || ''}
+                    onChange={(val) => setValue('vehicleColor', val)}
+                    placeholder="Select vehicle color..."
+                    searchPlaceholder="Search colors..."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vehicle Year</label>
+                  <Input {...register('vehicleYear')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Registration Number</label>
+                  <Input {...register('newRegistrationNumber')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Chassis Number</label>
+                  <Input {...register('newChassisNumber')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vehicle Make</label>
+                  <Input {...register('newVehicleMake')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vehicle Model</label>
+                  <Input {...register('newVehicleModel')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Address</label>
+                <Input {...register('address')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+              </div>
+              {(errors as any).firstName && (
+                <p className="text-[10px] text-destructive">{String((errors as any).firstName.message)}</p>
+              )}
             </>
           )}
 

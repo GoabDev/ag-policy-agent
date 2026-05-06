@@ -37,6 +37,45 @@ export const correctionSchema = z.discriminatedUnion("type", [
       .trim()
       .min(1, "New chassis number is required"),
   }),
+  baseSchema.extend({
+    type: z.literal("swap"),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+    engineNumber: z.string().optional(),
+    newChassisNumber: z.string().optional(),
+    newRegistrationNumber: z.string().optional(),
+    vehicleColor: z.string().optional(),
+    newVehicleMake: z.string().optional(),
+    newVehicleModel: z.string().optional(),
+    vehicleYear: z.string().optional(),
+    address: z.string().optional(),
+  }).superRefine((value, ctx) => {
+    const fields = [
+      value.firstName,
+      value.lastName,
+      value.email,
+      value.phone,
+      value.engineNumber,
+      value.newChassisNumber,
+      value.newRegistrationNumber,
+      value.vehicleColor,
+      value.newVehicleMake,
+      value.newVehicleModel,
+      value.vehicleYear,
+      value.address,
+    ];
+
+    const hasAnyValue = fields.some((field) => (field || "").trim().length > 0);
+    if (!hasAnyValue) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Provide at least one field to update",
+        path: ["firstName"],
+      });
+    }
+  }),
 ]);
 
 export type CorrectionFormValues = z.infer<typeof correctionSchema>;
@@ -50,4 +89,5 @@ export const typeConfig = {
   vehicle_make: { label: "Vehicle Correction", placeholder: "" },
   reg_and_chassis: { label: "Registration & Chassis", placeholder: "" },
   chassis: { label: "Chassis Correction", placeholder: "" },
+  swap: { label: "Swap Correction", placeholder: "" },
 };

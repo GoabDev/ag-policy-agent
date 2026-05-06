@@ -6,6 +6,7 @@ import {
   TaskStep,
   NameCorrectionInput,
   RegistrationCorrectionInput,
+  SwapCorrectionInput,
   VehicleMakeCorrectionInput,
   RegAndChassisCorrectionInput,
   ChassisCorrectionInput,
@@ -15,8 +16,8 @@ import {
 import { log, emitEvent, saveTaskLog } from '../utils/logger';
 import { searchPolicy, correctName, correctRegistration, correctRegandChasis, correctChassis, correctVehicleMake, loginToAG, navigateToPolicy, AG_SELECTORS } from '../browser/actions/ag';
 import { searchNIIDPolicy, correctNIIDRegistration, correctNIIDRegAndChassis, correctNIIDChassis } from '../browser/actions/niid';
-import { searchEPINPolicy, correctEPINName, correctEPINRegistration, correctEPINRegAndChassis, correctEPINChassis, correctEPINVehicleMake } from '../browser/actions/epin';
-import { searchNIIPPolicy, correctNIIPName, correctNIIPRegistration, correctNIIPRegAndChassis, correctNIIPChassis } from '../browser/actions/niip';
+import { searchEPINPolicy, correctEPINName, correctEPINRegistration, correctEPINRegAndChassis, correctEPINChassis, correctEPINVehicleMake, applyEPINSwap } from '../browser/actions/epin';
+import { searchNIIPPolicy, correctNIIPName, correctNIIPRegistration, correctNIIPRegAndChassis, correctNIIPChassis, correctNIIPVehicleMakeModel, applyNIIPSwap } from '../browser/actions/niip';
 import { acquireWorker, releaseWorker } from '../browser/workerPool';
 import { touchSession, touchWorkActivity } from '../browser/controller';
 import { config } from '../config';
@@ -207,7 +208,12 @@ export async function runCorrection(input: CorrectionInput): Promise<Task> {
   // Determine which sites this correction needs
   const sites: SiteName[] =
     policyChannel === 'epin'
-      ? (input.type === 'name' || input.type === 'registration' || input.type === 'reg_and_chassis' || input.type === 'chassis')
+      ? (input.type === 'name' ||
+          input.type === 'registration' ||
+          input.type === 'vehicle_make' ||
+          input.type === 'reg_and_chassis' ||
+          input.type === 'chassis' ||
+          input.type === 'swap')
         ? ['epin', 'niip']
         : ['epin']
       : (input.type === 'registration' || input.type === 'reg_and_chassis' || input.type === 'chassis')
@@ -270,6 +276,9 @@ export async function runCorrection(input: CorrectionInput): Promise<Task> {
         await (policyChannel === 'epin'
           ? runEpinChassisCorrection(task, input, worker, signal)
           : runChassisCorrection(task, input, worker, signal));
+        break;
+      case 'swap':
+        await runSwapCorrection(task, input, worker, signal, policyChannel);
         break;
       default:
         throw new Error(`Unknown correction type: ${(input as any).type}`);
@@ -432,7 +441,32 @@ async function runEpinVehicleMakeCorrection(task: Task, input: VehicleMakeCorrec
   task.newData = { vehicleMake: input.newVehicleMake, vehicleModel: input.newVehicleModel };
   addStep(task, createStep('epin', `Vehicle updated: ${oldMake} ${oldModel} → ${input.newVehicleMake} ${input.newVehicleModel}`, 'success'));
 
-  addStep(task, createStep('niip', 'NIIP update not required for vehicle make correction', 'skipped'));
+  checkCancelled(signal);
+
+  const currentRegNumber = await page.getByRole('textbox', {
+    name: 'Rgeistration No',
+    exact: true,
+  }).inputValue();
+
+  const niipPage = await prepareWorkerNIIPPage(worker);
+  addStep(task, createStep('niip', 'NIIP session ready', 'success'));
+  checkCancelled(signal);
+
+  await searchNIIPPolicy(niipPage, input.policyNumber, currentRegNumber);
+  addStep(task, createStep('niip', `NIIP search: policy ${input.policyNumber} + reg ${currentRegNumber}`, 'success'));
+  checkCancelled(signal);
+
+  const { oldMake: oldNiipMake, oldModel: oldNiipModel } = await correctNIIPVehicleMakeModel(
+    niipPage,
+    input.newVehicleMake,
+    input.newVehicleModel,
+  );
+  task.previousData = {
+    ...task.previousData,
+    niipVehicleMake: oldNiipMake,
+    niipVehicleModel: oldNiipModel,
+  };
+  addStep(task, createStep('niip', `NIIP vehicle updated: ${oldNiipMake} ${oldNiipModel} → ${input.newVehicleMake} ${input.newVehicleModel}`, 'success'));
 }
 
 // ============================================
@@ -585,6 +619,80 @@ async function runEpinChassisCorrection(task: Task, input: ChassisCorrectionInpu
 
   await correctNIIPChassis(niipPage, input.newChassisNumber);
   addStep(task, createStep('niip', `NIIP chassis updated to: ${input.newChassisNumber}`, 'success'));
+}
+
+function compactSwapFields(input: SwapCorrectionInput): Record<string, string> {
+  const entries = Object.entries({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    email: input.email,
+    phone: input.phone,
+    engineNumber: input.engineNumber,
+    newChassisNumber: input.newChassisNumber,
+    newRegistrationNumber: input.newRegistrationNumber,
+    vehicleColor: input.vehicleColor,
+    newVehicleMake: input.newVehicleMake,
+    newVehicleModel: input.newVehicleModel,
+    vehicleYear: input.vehicleYear,
+    address: input.address,
+  }).filter(([, value]) => typeof value === 'string' && value.trim().length > 0);
+
+  return Object.fromEntries(entries) as Record<string, string>;
+}
+
+async function runSwapCorrection(
+  task: Task,
+  input: SwapCorrectionInput,
+  worker: Worker,
+  signal: AbortSignal,
+  policyChannel: ReturnType<typeof getPolicyChannel>,
+) {
+  if (policyChannel !== 'epin') {
+    throw new Error('Swap is currently supported only for e-pin policies');
+  }
+
+  const updates = compactSwapFields(input);
+  if (Object.keys(updates).length === 0) {
+    throw new Error('No swap fields were provided');
+  }
+
+  const epinPage = await prepareWorkerEPINPage(worker);
+  addStep(task, createStep('epin', 'E-PIN session ready', 'success'));
+  checkCancelled(signal);
+
+  await searchEPINPolicy(epinPage, input.policyNumber);
+  addStep(task, createStep('epin', `Search policy: ${input.policyNumber}`, 'success'));
+  checkCancelled(signal);
+
+  const currentFirstName = await epinPage.inputValue('internal:role=textbox[name="First Name"i]');
+  const currentLastName = await epinPage.inputValue('internal:role=textbox[name="Last Name"i]');
+  const currentRegNumber = await epinPage.getByRole('textbox', {
+    name: 'Rgeistration No',
+    exact: true,
+  }).inputValue();
+
+  const epinPrevious = await applyEPINSwap(epinPage, input);
+  task.previousData = { ...epinPrevious };
+  task.newData = updates;
+  addStep(task, createStep('epin', `Swap updated fields: ${Object.keys(updates).join(', ')}`, 'success'));
+  checkCancelled(signal);
+
+  const niipPage = await prepareWorkerNIIPPage(worker);
+  addStep(task, createStep('niip', 'NIIP session ready', 'success'));
+  checkCancelled(signal);
+
+  await searchNIIPPolicy(niipPage, input.policyNumber, updates.newRegistrationNumber || currentRegNumber);
+  addStep(task, createStep('niip', `NIIP search: policy ${input.policyNumber} + reg ${updates.newRegistrationNumber || currentRegNumber}`, 'success'));
+  checkCancelled(signal);
+
+  const resolvedName =
+    input.firstName || input.lastName
+      ? `${input.firstName?.trim() || currentFirstName} ${input.lastName?.trim() || currentLastName}`.trim()
+      : undefined;
+
+  const niipPrevious = await applyNIIPSwap(niipPage, input, resolvedName);
+  task.previousData = { ...task.previousData, ...Object.fromEntries(Object.entries(niipPrevious).map(([key, value]) => [`niip_${key}`, value])) };
+  addStep(task, createStep('niip', `NIIP swap updated fields: ${Object.keys(updates).join(', ')}${resolvedName ? ', name' : ''}`, 'success'));
 }
 
 // ============================================

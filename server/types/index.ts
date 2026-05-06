@@ -7,7 +7,8 @@ export type CorrectionType =
   | "registration"
   | "vehicle_make"
   | "reg_and_chassis"
-  | "chassis";
+  | "chassis"
+  | "swap";
 
 export interface NameCorrectionInput {
   type: "name";
@@ -42,12 +43,30 @@ export interface ChassisCorrectionInput {
   newChassisNumber: string;
 }
 
+export interface SwapCorrectionInput {
+  type: "swap";
+  policyNumber: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  engineNumber?: string;
+  newChassisNumber?: string;
+  newRegistrationNumber?: string;
+  vehicleColor?: string;
+  newVehicleMake?: string;
+  newVehicleModel?: string;
+  vehicleYear?: string;
+  address?: string;
+}
+
 export type CorrectionInput =
   | NameCorrectionInput
   | RegistrationCorrectionInput
   | VehicleMakeCorrectionInput
   | RegAndChassisCorrectionInput
-  | ChassisCorrectionInput;
+  | ChassisCorrectionInput
+  | SwapCorrectionInput;
 
 // ============================================
 // Task & Status

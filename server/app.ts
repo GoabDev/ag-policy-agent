@@ -145,6 +145,34 @@ app.post("/api/corrections/run", async (req, res) => {
             .json({ success: false, error: "Missing newChassisNumber" });
         }
         break;
+      case "swap": {
+        const swapFields = [
+          (input as any).firstName,
+          (input as any).lastName,
+          (input as any).email,
+          (input as any).phone,
+          (input as any).engineNumber,
+          (input as any).newChassisNumber,
+          (input as any).newRegistrationNumber,
+          (input as any).vehicleColor,
+          (input as any).newVehicleMake,
+          (input as any).newVehicleModel,
+          (input as any).vehicleYear,
+          (input as any).address,
+        ];
+
+        const hasAnyValue = swapFields.some(
+          (value) => typeof value === "string" && value.trim().length > 0,
+        );
+
+        if (!hasAnyValue) {
+          return res.status(400).json({
+            success: false,
+            error: "Provide at least one swap field to update",
+          });
+        }
+        break;
+      }
       default:
         return res.status(400).json({
           success: false,
