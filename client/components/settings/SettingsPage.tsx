@@ -2,7 +2,13 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -32,6 +38,7 @@ import {
   Loader2,
   Info,
   Zap,
+  Download,
 } from "lucide-react";
 
 interface Settings {
@@ -360,6 +367,41 @@ export default function SettingsPage() {
           <Card className="bg-card border-border shadow-xl">
             <CardHeader className="border-b border-border py-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Download className="w-4 h-4 text-muted-foreground" />
+                Application Updates
+              </CardTitle>
+              <CardDescription>
+                Check the installed build version and test the updater manually.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between rounded-xl border border-border bg-background p-4">
+                <div>
+                  <Label className="text-sm font-medium">Current version</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Installed app release: v2.3.0
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => window.electronAPI?.checkForUpdates()}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Check for Updates
+                </Button>
+              </div>
+
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-700 dark:text-blue-200">
+                Manual update checks work best on installed production builds
+                created from the official setup installer and published with the
+                full Electron updater artifacts.
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border shadow-xl">
+            <CardHeader className="border-b border-border py-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Bell className="w-4 h-4 text-muted-foreground" />
                 Notifications
               </CardTitle>
@@ -432,7 +474,7 @@ export default function SettingsPage() {
         </div>
 
         <footer className="mt-16 text-center text-muted-foreground text-[10px] tracking-widest uppercase font-bold">
-          A&G Insurance - Policy Agent v2.1.2
+          A&G Insurance - Policy Agent v2.3.0
         </footer>
       </div>
     </div>

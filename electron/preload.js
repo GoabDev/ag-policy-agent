@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   close: () => ipcRenderer.send("window:close"),
   restart: () => ipcRenderer.send("app:restart"),
   restartAndClearSessions: () => ipcRenderer.send("app:restart-clear-sessions"),
+  checkForUpdates: () => ipcRenderer.send("app:check-for-updates"),
 });
