@@ -8,9 +8,11 @@ import { SiteName, Worker, WorkerPoolStatus } from "../types";
 // Park pages — where workers navigate after release
 const PARK_PAGES: Record<SiteName, string> = {
   ag: process.env.AG_POLICY_UPDATE_URL || "",
+  epin: config.epin.parkUrl,
   ag_push: config.ag.spoolUrl,
   ag_auto_push: config.ag.spoolUrl,
   niid: config.niid.policyCorrectionUrl,
+  niip: config.niip.parkUrl,
   niid_push: config.niidPush.uploadUrl,
   niid_auto_push: config.niidPush.uploadUrl,
 };

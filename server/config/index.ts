@@ -57,6 +57,15 @@ export const config: Config = Object.seal({
     sessionPath: path.join(storagePath, "ag-session.json"),
   },
 
+  // A&G E-PIN platform
+  epin: {
+    url: getEnv("EPIN_URL"),
+    parkUrl: getEnv("EPIN_PARK_URL"),
+    username: getEnv("EPIN_USERNAME"),
+    password: getEnv("EPIN_PASSWORD"),
+    sessionPath: path.join(storagePath, "epin-session.json"),
+  },
+
   // NIID (corrections)
   niid: {
     url: getEnv("NIID_URL"),
@@ -64,6 +73,15 @@ export const config: Config = Object.seal({
     username: getEnv("NIID_USERNAME"),
     password: getEnv("NIID_PASSWORD"),
     sessionPath: path.join(storagePath, "niid-session.json"),
+  },
+
+  // NIIP (E-PIN corrections)
+  niip: {
+    url: getEnv("NIIP_URL"),
+    parkUrl: getEnv("NIIP_PARK_URL"),
+    username: getEnv("NIIP_USERNAME"),
+    password: getEnv("NIIP_PASSWORD"),
+    sessionPath: path.join(storagePath, "niip-session.json"),
   },
 
   // NIID (policy push — separate session with alt credentials)

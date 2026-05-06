@@ -4,7 +4,10 @@ import { Button } from "@/components/ui/button";
 import {
   useStatus,
   useLoginAG,
+  useLoginEPIN,
   useLoginNIID,
+  useLoginNIIP,
+  useLoginEPINAll,
   useLoginNIIDPush,
   useLoginNIIDAll,
   useLoginAutomatedNIIDPush,
@@ -22,7 +25,9 @@ interface SessionInfo {
 interface SessionMap {
   ag: SessionInfo;
   ag_push: SessionInfo;
+  epin: SessionInfo;
   niid: SessionInfo;
+  niip: SessionInfo;
   niid_push: SessionInfo;
   ag_auto_push: SessionInfo;
   niid_auto_push: SessionInfo;
@@ -35,7 +40,9 @@ interface SessionControlProps {
 const emptySessions: SessionMap = {
   ag: { isActive: false },
   ag_push: { isActive: false },
+  epin: { isActive: false },
   niid: { isActive: false },
+  niip: { isActive: false },
   niid_push: { isActive: false },
   ag_auto_push: { isActive: false },
   niid_auto_push: { isActive: false },
@@ -55,7 +62,10 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
   const isAutomatedMode = mode === "automated";
 
   const loginAG = useLoginAG();
+  const loginEPIN = useLoginEPIN();
   const loginNIID = useLoginNIID();
+  const loginNIIP = useLoginNIIP();
+  const loginEPINAll = useLoginEPINAll();
   const loginNIIDPush = useLoginNIIDPush();
   const loginNIIDAll = useLoginNIIDAll();
   const loginAutomatedPush = useLoginAutomatedPushSessions();
@@ -65,6 +75,8 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
 
   const anyNiidPending =
     loginNIID.isPending || loginNIIDPush.isPending || loginNIIDAll.isPending;
+  const anyEpinPending =
+    loginEPIN.isPending || loginNIIP.isPending || loginEPINAll.isPending;
 
   const stopAllSessions = () => {
     const confirmed = window.confirm(
@@ -207,6 +219,59 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
               </div>
               <p className="text-[10px] text-muted-foreground mt-2 text-center">
                 Manual login - opens browser popup(s)
+              </p>
+            </div>
+
+            <div className="p-5 bg-background border border-border rounded-xl">
+              <h3 className="text-sm font-semibold mb-3">E-PIN / NIIP</h3>
+              <div className="text-xs text-muted-foreground mb-1">
+                E-PIN: <StatusText active={sessions.epin?.isActive} />
+              </div>
+              <div className="text-xs text-muted-foreground mb-1">
+                NIIP: <StatusText active={sessions.niip?.isActive} />
+              </div>
+              {sessions.epin?.lastActivity && (
+                <div className="text-[10px] text-muted-foreground mb-3 italic">
+                  Last activity:{" "}
+                  {new Date(sessions.epin.lastActivity).toLocaleString()}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs mb-2"
+                onClick={() => loginEPINAll.mutate()}
+                disabled={anyEpinPending}
+              >
+                {loginEPINAll.isPending ? (
+                  <RefreshCw className="w-3 h-3 animate-spin mr-2" />
+                ) : (
+                  <Lock className="w-3 h-3 mr-2" />
+                )}
+                Login Both
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 text-[10px] h-7"
+                  onClick={() => loginEPIN.mutate()}
+                  disabled={anyEpinPending}
+                >
+                  E-PIN Only
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 text-[10px] h-7"
+                  onClick={() => loginNIIP.mutate()}
+                  disabled={anyEpinPending}
+                >
+                  NIIP Only
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                Auto-login for e-pin corrections
               </p>
             </div>
           </>

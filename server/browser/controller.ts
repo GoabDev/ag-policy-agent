@@ -64,7 +64,9 @@ export async function closeBrowser() {
 export async function clearAllSessions() {
   const uniqueSessionPaths = new Set<string>([
     getSessionPath('ag'),
+    getSessionPath('epin'),
     getSessionPath('niid'),
+    getSessionPath('niip'),
     getSessionPath('niid_push'),
     getSessionPath('ag_auto_push'),
     getSessionPath('niid_auto_push'),
@@ -81,7 +83,7 @@ export async function clearAllSessions() {
   await closeBrowser();
 
   const now = new Date().toISOString();
-  for (const site of ['ag', 'ag_push', 'niid', 'niid_push', 'ag_auto_push', 'niid_auto_push'] as SiteName[]) {
+  for (const site of ['ag', 'ag_push', 'epin', 'niid', 'niip', 'niid_push', 'ag_auto_push', 'niid_auto_push'] as SiteName[]) {
     sessionStatus.set(site, { isActive: false, lastActivity: now });
     emitEvent('session:status', { site, isActive: false, lastActivity: now });
   }
@@ -98,6 +100,8 @@ function getSessionPath(site: SiteName): string {
   if (site === 'ag_auto_push') return config.automatedPush.agSessionPath;
   if (site === 'niid_auto_push') return config.automatedPush.niidSessionPath;
   if (site === 'ag' || site === 'ag_push') return config.ag.sessionPath;
+  if (site === 'epin') return config.epin.sessionPath;
+  if (site === 'niip') return config.niip.sessionPath;
   if (site === 'niid_push') return config.niidPush.sessionPath;
   return config.niid.sessionPath;
 }

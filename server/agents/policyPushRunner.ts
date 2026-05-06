@@ -19,6 +19,7 @@ import {
 import { renameSheetToSheet1 } from "../utils/xlsxProcessor";
 import { config } from "../config";
 import { touchWorkActivity } from "../browser/controller";
+import { isEpinPolicyNumber } from "../utils/policyClassifier";
 
 export interface PolicyPushSessionSites {
   ag: "ag_push" | "ag_auto_push";
@@ -85,6 +86,10 @@ export async function runPolicyPush(
   sites: PolicyPushSessionSites = MANUAL_PUSH_SITES,
   metadata: PolicyPushRunMetadata = {},
 ): Promise<PolicyPushTask> {
+  if (input.method === "policy_number" && isEpinPolicyNumber(input.policyNumber)) {
+    throw new Error("E-pin policies are not supported for policy push");
+  }
+
   const task: PolicyPushTask = {
     id: uuid(),
     input,

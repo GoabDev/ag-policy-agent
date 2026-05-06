@@ -57,7 +57,7 @@ export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cance
 
 export interface TaskStep {
   timestamp: string;
-  site: "ag" | "niid";
+  site: "ag" | "niid" | "epin" | "niip";
   action: string;
   status: "success" | "failed" | "skipped";
   details?: string;
@@ -83,6 +83,8 @@ export interface Task {
 export type SiteName =
   | "ag"
   | "niid"
+  | "epin"
+  | "niip"
   | "ag_push"
   | "niid_push"
   | "ag_auto_push"
@@ -114,6 +116,8 @@ export interface AgentStatus {
     ag_push: SessionStatus;
     niid: SessionStatus;
     niid_push: SessionStatus;
+    epin: SessionStatus;
+    niip: SessionStatus;
     ag_auto_push: SessionStatus;
     niid_auto_push: SessionStatus;
   };
@@ -279,9 +283,23 @@ export interface Config {
     password: string;
     sessionPath: string;
   };
+  epin: {
+    url: string;
+    parkUrl: string;
+    username: string;
+    password: string;
+    sessionPath: string;
+  };
   niid: {
     url: string;
     policyCorrectionUrl: string;
+    username: string;
+    password: string;
+    sessionPath: string;
+  };
+  niip: {
+    url: string;
+    parkUrl: string;
     username: string;
     password: string;
     sessionPath: string;

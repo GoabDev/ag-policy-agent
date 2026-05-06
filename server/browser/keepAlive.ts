@@ -9,6 +9,8 @@ import {
   getLastWorkActivity,
 } from "./controller";
 import { loginToAG } from "./actions/ag";
+import { loginToEPIN } from "./actions/epin";
+import { loginToNIIP } from "./actions/niip";
 import { openLoginPopup } from "./manualLogin";
 import { log, emitEvent } from "../utils/logger";
 import { SiteName } from "../types";
@@ -24,7 +26,9 @@ const SESSION_INACTIVITY_TIMEOUT = config.sessionInactivityTimeout;
 // Pages we stay parked on - where the automation work happens
 const PARK_PAGES: Record<SiteName, string> = {
   ag: process.env.AG_POLICY_UPDATE_URL || "",
+  epin: config.epin.parkUrl,
   niid: config.niid.policyCorrectionUrl,
+  niip: config.niip.parkUrl,
   ag_push: config.ag.spoolUrl,
   ag_auto_push: config.ag.spoolUrl,
   niid_push: config.niidPush.uploadUrl,
@@ -35,8 +39,10 @@ const PARK_PAGES: Record<SiteName, string> = {
 const SESSION_EXPIRED_INDICATORS: Record<SiteName, string> = {
   ag: "ErrorPage.aspx",
   ag_push: "ErrorPage.aspx",
+  epin: "/Account/Login",
   ag_auto_push: "ErrorPage.aspx",
   niid: "/default.aspx",
+  niip: "/Home/Index",
   niid_push: "/default.aspx",
   niid_auto_push: "/default.aspx",
 };
@@ -71,6 +77,30 @@ async function handleExpiredSession(site: SiteName, page: Page) {
     touchSession(site);
     heartbeatFailureCounts.set(site, 0);
     log(`${isAutomatedPush ? "A&G Automated Push" : "AG"} session recovered`);
+    emitEvent("keepalive:ping", { site, status: "recovered" });
+  } else if (site === "epin") {
+    log("Session expired for E-PIN, attempting re-login...", "warn");
+    await loginToEPIN();
+    await page.goto(PARK_PAGES[site], {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    await saveSession(site);
+    touchSession(site);
+    heartbeatFailureCounts.set(site, 0);
+    log("E-PIN session recovered");
+    emitEvent("keepalive:ping", { site, status: "recovered" });
+  } else if (site === "niip") {
+    log("Session expired for NIIP, attempting re-login...", "warn");
+    await loginToNIIP();
+    await page.goto(PARK_PAGES[site], {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    await saveSession(site);
+    touchSession(site);
+    heartbeatFailureCounts.set(site, 0);
+    log("NIIP session recovered");
     emitEvent("keepalive:ping", { site, status: "recovered" });
   } else if (site === "niid" || site === "niid_push" || site === "niid_auto_push") {
     const label =
@@ -215,6 +245,10 @@ async function sendHeartbeat(site: SiteName) {
           ? "A&G"
           : site === "ag_push"
             ? "A&G Push"
+            : site === "epin"
+              ? "E-PIN"
+              : site === "niip"
+                ? "NIIP"
             : site === "niid_push"
               ? "NIID Push"
               : site === "ag_auto_push"
@@ -268,7 +302,7 @@ export function startHeartbeat(site: SiteName) {
   stopHeartbeat(site);
 
   const interval =
-    site === "niid" || site === "niid_push" || site === "niid_auto_push"
+    site === "niid" || site === "niid_push" || site === "niid_auto_push" || site === "niip"
       ? config.niidKeepAliveInterval
       : config.keepAliveInterval;
 
@@ -294,13 +328,17 @@ export function stopHeartbeat(site: SiteName) {
 
 export function startAllHeartbeats() {
   const agStatus = getSessionStatus("ag");
+  const epinStatus = getSessionStatus("epin");
   const niidStatus = getSessionStatus("niid");
+  const niipStatus = getSessionStatus("niip");
   const niidPushStatus = getSessionStatus("niid_push");
   const agAutoPushStatus = getSessionStatus("ag_auto_push");
   const niidAutoPushStatus = getSessionStatus("niid_auto_push");
 
   if (agStatus.isActive) startHeartbeat("ag");
+  if (epinStatus.isActive) startHeartbeat("epin");
   if (niidStatus.isActive) startHeartbeat("niid");
+  if (niipStatus.isActive) startHeartbeat("niip");
   if (niidPushStatus.isActive) startHeartbeat("niid_push");
   if (agAutoPushStatus.isActive) startHeartbeat("ag_auto_push");
   if (niidAutoPushStatus.isActive) startHeartbeat("niid_auto_push");
@@ -308,7 +346,9 @@ export function startAllHeartbeats() {
 
 export function stopAllHeartbeats() {
   stopHeartbeat("ag");
+  stopHeartbeat("epin");
   stopHeartbeat("niid");
+  stopHeartbeat("niip");
   stopHeartbeat("niid_push");
   stopHeartbeat("ag_auto_push");
   stopHeartbeat("niid_auto_push");

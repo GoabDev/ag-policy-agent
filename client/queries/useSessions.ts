@@ -24,6 +24,20 @@ export function useLoginAG() {
   });
 }
 
+export function useLoginEPIN() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.loginEPIN,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      sileo.success({ title: 'E-PIN login initiated' });
+    },
+    onError: (error: Error) => {
+      sileo.error({ title: 'E-PIN login failed', description: error.message || 'Something went wrong' });
+    },
+  });
+}
+
 export function useLoginNIID() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -80,6 +94,34 @@ export function useLoginAutomatedPushSessions() {
     },
     onError: (error: Error) => {
       sileo.error({ title: 'Automated push login failed', description: error.message || 'Something went wrong' });
+    },
+  });
+}
+
+export function useLoginNIIP() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.loginNIIP,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      sileo.success({ title: 'NIIP login initiated' });
+    },
+    onError: (error: Error) => {
+      sileo.error({ title: 'NIIP login failed', description: error.message || 'Something went wrong' });
+    },
+  });
+}
+
+export function useLoginEPINAll() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.loginEPINAll,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      sileo.success({ title: 'E-PIN and NIIP login initiated' });
+    },
+    onError: (error: Error) => {
+      sileo.error({ title: 'E-PIN / NIIP login failed', description: error.message || 'Something went wrong' });
     },
   });
 }

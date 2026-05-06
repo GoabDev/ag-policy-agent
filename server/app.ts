@@ -51,6 +51,7 @@ import {
   runLogCleanup,
   getCleanableLogCount,
 } from "./jobs/logCleanup";
+import { isEpinPolicyNumber } from "./utils/policyClassifier";
 
 const app = express();
 app.use(cors());
@@ -78,7 +79,9 @@ app.get("/api/status", (req, res) => {
       sessions: {
         ag: getSessionStatus("ag"),
         ag_push: getSessionStatus("ag_push"),
+        epin: getSessionStatus("epin"),
         niid: getSessionStatus("niid"),
+        niip: getSessionStatus("niip"),
         niid_push: getSessionStatus("niid_push"),
         ag_auto_push: getSessionStatus("ag_auto_push"),
         niid_auto_push: getSessionStatus("niid_auto_push"),
@@ -230,6 +233,52 @@ app.post("/api/sessions/login-niid", async (req, res) => {
   }
 });
 
+app.post("/api/sessions/login-epin", async (req, res) => {
+  try {
+    const { loginToEPIN } = await import("./browser/actions/epin");
+    await loginToEPIN();
+    startHeartbeat("epin");
+    res.json({
+      success: true,
+      data: { message: "Logged into E-PIN successfully" },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/sessions/login-niip", async (req, res) => {
+  try {
+    const { loginToNIIP } = await import("./browser/actions/niip");
+    await loginToNIIP();
+    startHeartbeat("niip");
+    res.json({
+      success: true,
+      data: { message: "Logged into NIIP successfully" },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/sessions/login-epin-all", async (req, res) => {
+  try {
+    const { loginToEPIN } = await import("./browser/actions/epin");
+    const { loginToNIIP } = await import("./browser/actions/niip");
+
+    await Promise.all([loginToEPIN(), loginToNIIP()]);
+    startHeartbeat("epin");
+    startHeartbeat("niip");
+
+    res.json({
+      success: true,
+      data: { message: "Logged into E-PIN and NIIP successfully" },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Trigger keepalive
 app.post("/api/sessions/keepalive", async (req, res) => {
   try {
@@ -273,6 +322,17 @@ app.post("/api/policy-push/run", async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "Missing required field: policyNumber",
+      });
+    }
+
+    if (
+      input.method === "policy_number" &&
+      input.policyNumber &&
+      isEpinPolicyNumber(input.policyNumber)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "E-pin policies are not supported for policy push",
       });
     }
 

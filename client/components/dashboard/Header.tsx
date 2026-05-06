@@ -11,7 +11,12 @@ export function Header() {
   const { data: status } = useStatus();
   const loginMutation = useLoginAG();
 
-  const sessions = status?.data?.sessions || { ag: { isActive: false }, niid: { isActive: false } };
+  const sessions = status?.data?.sessions || {
+    ag: { isActive: false },
+    niid: { isActive: false },
+    epin: { isActive: false },
+    niip: { isActive: false },
+  };
 
   return (
     <header className="flex items-center justify-between mb-8 pb-6 border-b border-border">
@@ -41,6 +46,22 @@ export function Header() {
         >
           <span className={`w-2 h-2 rounded-full ${sessions.niid?.isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-muted-foreground/50'}`} />
           NIID {sessions.niid?.isActive ? 'Connected' : 'Offline'}
+        </Badge>
+
+        <Badge
+          variant="outline"
+          className={`px-3 py-1.5 rounded-full flex items-center gap-2 bg-card ${sessions.epin?.isActive ? 'border-emerald-500/50 text-emerald-500 dark:text-emerald-400' : 'border-border text-muted-foreground'}`}
+        >
+          <span className={`w-2 h-2 rounded-full ${sessions.epin?.isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-muted-foreground/50'}`} />
+          E-PIN {sessions.epin?.isActive ? 'Connected' : 'Offline'}
+        </Badge>
+
+        <Badge
+          variant="outline"
+          className={`px-3 py-1.5 rounded-full flex items-center gap-2 bg-card ${sessions.niip?.isActive ? 'border-emerald-500/50 text-emerald-500 dark:text-emerald-400' : 'border-border text-muted-foreground'}`}
+        >
+          <span className={`w-2 h-2 rounded-full ${sessions.niip?.isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-muted-foreground/50'}`} />
+          NIIP {sessions.niip?.isActive ? 'Connected' : 'Offline'}
         </Badge>
 
         <Button

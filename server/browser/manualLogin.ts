@@ -22,6 +22,10 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
   const siteConfig =
     site === "ag" || site === "ag_push" || site === "ag_auto_push"
       ? config.ag
+      : site === "epin"
+        ? config.epin
+        : site === "niip"
+          ? config.niip
       : site === "niid_push" || site === "niid_auto_push"
         ? config.niidPush
         : config.niid;
@@ -96,7 +100,9 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
           return (
             url.includes("home.aspx") ||
             url.includes("change_request.aspx") ||
-            url.includes("upload_policy.aspx")
+            url.includes("upload_policy.aspx") ||
+            url.includes("policyupdateniip.aspx") ||
+            url.includes("/company/activepolicies")
           );
         },
         { timeout: 300000 },
@@ -110,7 +116,9 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
             return (
               value.includes("home.aspx") ||
               value.includes("change_request.aspx") ||
-              value.includes("upload_policy.aspx")
+              value.includes("upload_policy.aspx") ||
+              value.includes("policyupdateniip.aspx") ||
+              value.includes("/company/activepolicies")
             );
           },
           { timeout: 300000 },
@@ -162,8 +170,8 @@ export async function closeManualLoginPopups() {
 if (require.main === module) {
   const site = process.argv[2] as SiteName;
 
-  if (!site || !["ag", "ag_push", "niid", "niid_push", "ag_auto_push", "niid_auto_push"].includes(site)) {
-    console.log("Usage: npx ts-node src/browser/manualLogin.ts <ag|ag_push|niid|niid_push|ag_auto_push|niid_auto_push>");
+  if (!site || !["ag", "ag_push", "epin", "niid", "niip", "niid_push", "ag_auto_push", "niid_auto_push"].includes(site)) {
+    console.log("Usage: npx ts-node src/browser/manualLogin.ts <ag|ag_push|epin|niid|niip|niid_push|ag_auto_push|niid_auto_push>");
     process.exit(1);
   }
 

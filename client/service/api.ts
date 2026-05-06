@@ -30,7 +30,10 @@ export const runCorrection = (data: any) => {
 export const getVehicleData = () => api.get('/api/vehicle-data');
 export const refreshVehicleData = () => api.get('/api/vehicle-data?refresh=true');
 export const loginAG = () => api.post('/api/sessions/login-ag');
+export const loginEPIN = () => api.post('/api/sessions/login-epin');
 export const loginNIID = () => api.post('/api/sessions/login-niid');
+export const loginNIIP = () => api.post('/api/sessions/login-niip');
+export const loginEPINAll = () => api.post('/api/sessions/login-epin-all');
 export const loginNIIDPush = () => api.post('/api/sessions/login-niid-push');
 export const loginNIIDAll = () => api.post('/api/sessions/login-niid-all');
 export const loginAutomatedPushSessions = () => api.post('/api/sessions/login-automated-push');

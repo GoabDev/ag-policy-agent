@@ -38,6 +38,10 @@ export function useSSE() {
         return 'A&G Push session';
       case 'niid':
         return 'NIID session';
+      case 'epin':
+        return 'E-PIN session';
+      case 'niip':
+        return 'NIIP session';
       case 'niid_push':
         return 'NIID Push session';
       case 'ag_auto_push':
