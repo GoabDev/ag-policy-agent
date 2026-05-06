@@ -20,8 +20,14 @@ import {
   getRunningTasks,
   getTaskHistory,
 } from "./agents/correctionRunner";
+import {
+  closePolicyStatus,
+  getPolicyStatusHistory,
+  resetPolicyStatus,
+  startPolicyStatus,
+} from "./agents/policyStatusRunner";
 import { getPoolStatus, destroyAllWorkers } from "./browser/workerPool";
-import { CorrectionInput, PolicyPushInput } from "./types";
+import { CorrectionInput, PolicyPushInput, PolicyStatusInput } from "./types";
 import {
   cancelPolicyPush,
   getRunningPushTasks,
@@ -422,6 +428,71 @@ app.get("/api/policy-push/logs", (req, res) => {
     }
   }
 
+  res.json({ success: true, data: merged });
+});
+
+app.post("/api/pol-status/start", (req, res) => {
+  try {
+    const input: PolicyStatusInput = req.body;
+
+    if (!input.policyNumber || input.policyNumber.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required field: policyNumber",
+      });
+    }
+
+    const task = startPolicyStatus({
+      policyNumber: input.policyNumber.trim(),
+    });
+
+    res.json({
+      success: true,
+      data: {
+        taskId: task.id,
+        message: "Policy status task queued",
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/pol-status/:taskId/close", async (req, res) => {
+  try {
+    const closed = await closePolicyStatus(req.params.taskId);
+    if (!closed) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Policy status task not found" });
+    }
+
+    res.json({ success: true, data: { message: "Policy status task closed" } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/pol-status/:taskId/reset", async (req, res) => {
+  try {
+    const reset = await resetPolicyStatus(req.params.taskId);
+    if (!reset) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Policy status task not found" });
+    }
+
+    res.json({ success: true, data: { message: "Policy status reset started" } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/pol-status/logs", (req, res) => {
+  const history = getPolicyStatusHistory();
+  const fileLogs = loadTaskLogs().filter((t) => t.input && t.result && !t.correction);
+  const seen = new Set(history.map((t) => t.id));
+  const merged = [...history, ...fileLogs.filter((t) => !seen.has(t.id))];
   res.json({ success: true, data: merged });
 });
 

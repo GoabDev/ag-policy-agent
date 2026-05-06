@@ -74,7 +74,7 @@ export async function searchNIIPPolicy(
   await page.fill(SELECTORS.search.policyNumberField, policyNumber);
   await Promise.all([
     waitForNIIPSearchTransition(page, startUrl),
-    page.click(SELECTORS.search.searchButton),
+    page.click(SELECTORS.search.searchButton, { noWaitAfter: true }),
   ]);
 
   log(
@@ -106,9 +106,7 @@ export async function correctNIIPRegistration(
 ): Promise<void> {
   await page.fill(SELECTORS.policy.regNumberField, newRegNumber);
   await submitNIIPEndorse(page);
-  await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
-  });
+  await waitForNIIPSuccess(page);
   await saveSession("niip");
 }
 
@@ -127,9 +125,7 @@ export async function correctNIIPName(
   await page.fill(SELECTORS.policy.nameField, fullName);
 
   await submitNIIPEndorse(page);
-  await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
-  });
+  await waitForNIIPSuccess(page);
   await saveSession("niip");
 
   log("Name correction saved on NIIP");
@@ -146,9 +142,7 @@ export async function correctNIIPRegAndChassis(
   await page.fill(SELECTORS.policy.regNumberField, newRegNumber);
   await page.fill(SELECTORS.policy.chassisNumberField, normalizedChassis);
   await submitNIIPEndorse(page);
-  await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
-  });
+  await waitForNIIPSuccess(page);
   await saveSession("niip");
 }
 
@@ -160,9 +154,7 @@ export async function correctNIIPChassis(
 
   await page.fill(SELECTORS.policy.chassisNumberField, normalizedChassis);
   await submitNIIPEndorse(page);
-  await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
-  });
+  await waitForNIIPSuccess(page);
   await saveSession("niip");
 }
 
@@ -198,9 +190,7 @@ export async function correctNIIPVehicleMakeModel(
   });
 
   await submitNIIPEndorse(page);
-  await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
-  });
+  await waitForNIIPSuccess(page);
   await saveSession("niip");
 
   log("Vehicle make/model correction saved on NIIP");
@@ -324,9 +314,7 @@ export async function applyNIIPSwap(
   }
 
   await submitNIIPEndorse(page);
-  await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
-  });
+  await waitForNIIPSuccess(page);
   await saveSession("niip");
 
   log("Swap correction saved on NIIP");
@@ -351,7 +339,7 @@ async function waitForNIIPSearchTransition(
 ): Promise<void> {
   try {
     await page.waitForURL((url) => url.toString() !== startUrl, {
-      timeout: 15000,
+      timeout: 45000,
     });
   } catch {
     await waitForNIIPPageTransition(page);
@@ -359,9 +347,9 @@ async function waitForNIIPSearchTransition(
 }
 
 async function waitForNIIPPageTransition(page: Page): Promise<void> {
-  await page.waitForLoadState("domcontentloaded", { timeout: 20000 });
+  await page.waitForLoadState("domcontentloaded", { timeout: 45000 });
   await page
-    .waitForLoadState("load", { timeout: 20000 })
+    .waitForLoadState("load", { timeout: 45000 })
     .catch(() => undefined);
 }
 
@@ -372,14 +360,20 @@ async function submitNIIPEndorse(page: Page): Promise<void> {
 
   try {
     await page.waitForURL((url) => url.toString() !== startUrl, {
-      timeout: 30000,
+      timeout: 45000,
     });
   } catch {
-    await page.waitForLoadState("domcontentloaded", { timeout: 30000 });
-    await page.waitForLoadState("load", { timeout: 30000 }).catch(
+    await page.waitForLoadState("domcontentloaded", { timeout: 45000 });
+    await page.waitForLoadState("load", { timeout: 45000 }).catch(
       () => undefined,
     );
   }
+}
+
+async function waitForNIIPSuccess(page: Page): Promise<void> {
+  await page.waitForSelector(SELECTORS.policy.successMessage, {
+    timeout: 45000,
+  });
 }
 
 function normalizeNIIPChassis(chassis: string): string {

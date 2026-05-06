@@ -176,6 +176,10 @@ export function getPoolStatus(): WorkerPoolStatus {
   };
 }
 
+export function getWorkerById(workerId: string): Worker | undefined {
+  return workers.get(workerId);
+}
+
 // ============================================
 // Cleanup all workers (for shutdown)
 // ============================================

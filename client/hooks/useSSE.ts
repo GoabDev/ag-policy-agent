@@ -25,10 +25,44 @@ interface ActivityLog {
   id: number;
 }
 
+interface PolicyStatusSummaryRow {
+  policyNo: string;
+  regNo: string;
+  coverDate: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  response: string;
+  canReset: boolean;
+}
+
+interface PolicyStatusTrailRow {
+  trailDate: string;
+  time: string;
+  policyNo: string;
+  response: string;
+  server: string;
+}
+
+interface PolicyStatusResult {
+  policyNumber: string;
+  summaryRows: PolicyStatusSummaryRow[];
+  trailRows: PolicyStatusTrailRow[];
+}
+
+export interface PolicyStatusTaskState {
+  id: string;
+  policyNumber: string;
+  steps: TaskStepState[];
+  status: 'running' | 'awaiting_user_action' | 'completed' | 'failed';
+  result?: PolicyStatusResult;
+  error?: string;
+}
+
 export function useSSE() {
   const queryClient = useQueryClient();
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map());
+  const [policyStatusTasks, setPolicyStatusTasks] = useState<Map<string, PolicyStatusTaskState>>(new Map());
 
   const getSessionLabel = useCallback((site?: string) => {
     switch (site) {
@@ -136,6 +170,82 @@ export function useSSE() {
             return next;
           });
           addLog('x-circle', 'Task cancelled by user', time);
+
+        } else if (ev.type === 'polstatus:started' && taskId) {
+          setPolicyStatusTasks((prev) => {
+            const next = new Map(prev);
+            next.set(taskId, {
+              id: taskId,
+              policyNumber: ev.data?.policyNumber || '',
+              steps: [],
+              status: 'running',
+            });
+            return next;
+          });
+          addLog('search', `Policy status started: ${ev.data?.policyNumber || ''}`, time);
+
+        } else if (ev.type === 'polstatus:step' && taskId) {
+          const s = ev.data?.step;
+          if (s) {
+            setPolicyStatusTasks((prev) => {
+              const next = new Map(prev);
+              const task = next.get(taskId);
+              if (task) {
+                next.set(taskId, { ...task, steps: [...task.steps, s] });
+              }
+              return next;
+            });
+            const icon = s.status === 'success' ? 'check-circle' : s.status === 'failed' ? 'x-circle' : 'skip-forward';
+            addLog(icon, `[EPIN STATUS] ${s.action}`, time);
+          }
+
+        } else if (ev.type === 'polstatus:awaiting_action' && taskId) {
+          setPolicyStatusTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, {
+                ...task,
+                status: 'awaiting_user_action',
+                result: ev.data?.result,
+              });
+            }
+            return next;
+          });
+          queryClient.invalidateQueries({ queryKey: ['policy-status-logs'] });
+          addLog('pause-circle', `Policy status ready for review: ${ev.data?.policyNumber || ''}`, time);
+
+        } else if (ev.type === 'polstatus:completed' && taskId) {
+          setPolicyStatusTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, {
+                ...task,
+                status: 'completed',
+                result: ev.data?.result || task.result,
+              });
+            }
+            return next;
+          });
+          queryClient.invalidateQueries({ queryKey: ['policy-status-logs'] });
+          addLog('check-circle-2', `Policy status closed: ${ev.data?.policyNumber || ''}`, time);
+
+        } else if (ev.type === 'polstatus:failed' && taskId) {
+          setPolicyStatusTasks((prev) => {
+            const next = new Map(prev);
+            const task = next.get(taskId);
+            if (task) {
+              next.set(taskId, {
+                ...task,
+                status: 'failed',
+                error: ev.data?.error,
+              });
+            }
+            return next;
+          });
+          queryClient.invalidateQueries({ queryKey: ['policy-status-logs'] });
+          addLog('x-circle', `Policy status failed: ${ev.data?.error || ''}`, time);
 
         } else if (ev.type === 'push:started' && taskId) {
           setTasks((prev) => {
@@ -252,5 +362,13 @@ export function useSSE() {
     return () => clearInterval(interval);
   }, []);
 
-  return { logs, setLogs, tasks, activeTasks, isRunning, addLog };
+  return {
+    logs,
+    setLogs,
+    tasks,
+    activeTasks,
+    isRunning,
+    addLog,
+    policyStatusTasks,
+  };
 }

@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { Header } from "./Header";
 import { CorrectionForm } from "./CorrectionForm";
 import { PolicyPushForm } from "./PolicyPushForm";
+import { PolicyStatusForm } from "./PolicyStatusForm";
 import { LiveActivity } from "./LiveActivity";
 import { HistoryTable } from "./HistoryTable";
 import { SessionControl } from "./SessionControl";
@@ -13,7 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 export default function DashboardContent() {
-  const { logs, setLogs, tasks, activeTasks, isRunning } = useSSE();
+  const { logs, setLogs, tasks, activeTasks, isRunning, policyStatusTasks } = useSSE();
 
   const queryClient = useQueryClient();
 
@@ -54,6 +55,10 @@ export default function DashboardContent() {
             tasks={tasks}
           />
           <PolicyPushForm activeTasks={activeTasks} tasks={tasks} />
+        </div>
+
+        <div className="mb-8">
+          <PolicyStatusForm policyStatusTasks={policyStatusTasks} />
         </div>
 
         <div className="mb-8">

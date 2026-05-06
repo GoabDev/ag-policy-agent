@@ -2,6 +2,7 @@ import api from './config/axios';
 
 export const getStatus = () => api.get('/api/status');
 export const getLogs = () => api.get('/api/corrections/logs');
+export const getPolicyStatusLogs = () => api.get('/api/pol-status/logs');
 
 export const runCorrection = (data: any) => {
   const body: any = { 
@@ -65,6 +66,12 @@ export const stopAllSessions = () => api.post('/api/sessions/stop-all');
 // Cancellation
 export const cancelCorrection = (taskId: string) => api.post(`/api/corrections/${taskId}/cancel`);
 export const cancelPolicyPush = (taskId: string) => api.post(`/api/policy-push/${taskId}/cancel`);
+export const startPolicyStatus = (data: { policyNumber: string }) =>
+  api.post('/api/pol-status/start', data);
+export const closePolicyStatus = (taskId: string) =>
+  api.post(`/api/pol-status/${taskId}/close`);
+export const resetPolicyStatus = (taskId: string) =>
+  api.post(`/api/pol-status/${taskId}/reset`);
 
 // Policy Push
 export const pushPolicy = (data: { method: string; policyNumber?: string; fromDate?: string; toDate?: string }) => {

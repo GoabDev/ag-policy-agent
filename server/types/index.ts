@@ -69,10 +69,48 @@ export type CorrectionInput =
   | SwapCorrectionInput;
 
 // ============================================
+// Policy Status Types
+// ============================================
+
+export interface PolicyStatusInput {
+  policyNumber: string;
+}
+
+export interface PolicyStatusSummaryRow {
+  policyNo: string;
+  regNo: string;
+  coverDate: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  response: string;
+  canReset: boolean;
+}
+
+export interface PolicyStatusTrailRow {
+  trailDate: string;
+  time: string;
+  policyNo: string;
+  response: string;
+  server: string;
+}
+
+export interface PolicyStatusResult {
+  policyNumber: string;
+  summaryRows: PolicyStatusSummaryRow[];
+  trailRows: PolicyStatusTrailRow[];
+}
+
+// ============================================
 // Task & Status
 // ============================================
 
-export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+export type TaskStatus =
+  | "pending"
+  | "running"
+  | "awaiting_user_action"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export interface TaskStep {
   timestamp: string;
@@ -90,6 +128,17 @@ export interface Task {
   steps: TaskStep[];
   previousData?: Record<string, string>;
   newData?: Record<string, string>;
+  createdAt: string;
+  completedAt?: string;
+  error?: string;
+}
+
+export interface PolicyStatusTask {
+  id: string;
+  input: PolicyStatusInput;
+  status: TaskStatus;
+  steps: TaskStep[];
+  result?: PolicyStatusResult;
   createdAt: string;
   completedAt?: string;
   error?: string;
@@ -171,6 +220,11 @@ export type SSEEventType =
   | "task:step"
   | "task:completed"
   | "task:failed"
+  | "polstatus:started"
+  | "polstatus:step"
+  | "polstatus:awaiting_action"
+  | "polstatus:completed"
+  | "polstatus:failed"
   | "push:started"
   | "push:step"
   | "push:completed"
@@ -305,6 +359,7 @@ export interface Config {
   epin: {
     url: string;
     parkUrl: string;
+    policyStatusUrl: string;
     username: string;
     password: string;
     sessionPath: string;

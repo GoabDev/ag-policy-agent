@@ -61,6 +61,10 @@ export const config: Config = Object.seal({
   epin: {
     url: getEnv("EPIN_URL"),
     parkUrl: getEnv("EPIN_PARK_URL"),
+    policyStatusUrl: getEnv(
+      "EPIN_POLICY_STATUS_URL",
+      "https://3rdparty.aginsuranceapplications.com/Utility/NIIPNIIDUploadStatus.aspx",
+    ),
     username: getEnv("EPIN_USERNAME"),
     password: getEnv("EPIN_PASSWORD"),
     sessionPath: path.join(storagePath, "epin-session.json"),

@@ -2,7 +2,12 @@ import { Page } from "playwright";
 import { config } from "../../config";
 import { getPage, saveSession, touchSession } from "../controller";
 import { log } from "../../utils/logger";
-import { SwapCorrectionInput } from "../../types";
+import {
+  PolicyStatusResult,
+  PolicyStatusSummaryRow,
+  PolicyStatusTrailRow,
+  SwapCorrectionInput,
+} from "../../types";
 import { normalizeVehicleColor } from "../../utils/vehicleOptions";
 
 const SELECTORS = {
@@ -44,6 +49,15 @@ const SELECTORS = {
     saveButton: 'internal:role=button[name="Save"i]',
     error: 'internal:text="Sorry. The Policy Number you"',
     successMessage: 'internal:text="Record successfully Updated."i',
+  },
+  statusPage: {
+    policyNumberField: 'input[type="text"]',
+    regNumberField: 'internal:role=textbox[name="txtregno"i]',
+    searchButton:
+      'button:has-text("Search"), input[type="submit"][value="Search"]',
+    tables: "table",
+    resetButton: 'internal:role=link[name="Reset"i]',
+    resetSuccess: "#lblmessage",
   },
 };
 
@@ -193,7 +207,9 @@ export async function correctEPINVehicleMake(
   log(`Correcting E-PIN vehicle make to: ${newMake} and model to: ${newModel}`);
 
   const optionLabel = await resolveEpinMakeModelOption(page, newMake, newModel);
-  await page.selectOption(SELECTORS.policy.vehicleMakeModelField, { label: optionLabel });
+  await page.selectOption(SELECTORS.policy.vehicleMakeModelField, {
+    label: optionLabel,
+  });
   await page.click(SELECTORS.policy.saveButton);
 
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
@@ -289,14 +305,18 @@ export async function applyEPINSwap(
   let hasChanges = false;
 
   if (input.firstName) {
-    previousData.firstName = await page.inputValue(SELECTORS.policy.firstNameField);
+    previousData.firstName = await page.inputValue(
+      SELECTORS.policy.firstNameField,
+    );
     await page.fill(SELECTORS.policy.firstNameField, "");
     await page.fill(SELECTORS.policy.firstNameField, input.firstName);
     hasChanges = true;
   }
 
   if (input.lastName) {
-    previousData.lastName = await page.inputValue(SELECTORS.policy.lastNameField);
+    previousData.lastName = await page.inputValue(
+      SELECTORS.policy.lastNameField,
+    );
     await page.fill(SELECTORS.policy.lastNameField, "");
     await page.fill(SELECTORS.policy.lastNameField, input.lastName);
     hasChanges = true;
@@ -317,23 +337,31 @@ export async function applyEPINSwap(
   }
 
   if (input.engineNumber) {
-    previousData.engineNumber = await page.inputValue(SELECTORS.policy.engineField);
+    previousData.engineNumber = await page.inputValue(
+      SELECTORS.policy.engineField,
+    );
     await page.fill(SELECTORS.policy.engineField, "");
     await page.fill(SELECTORS.policy.engineField, input.engineNumber);
     hasChanges = true;
   }
 
   if (input.newRegistrationNumber) {
-    previousData.registrationNumber = await getEpinRegistrationField(page).inputValue();
+    previousData.registrationNumber =
+      await getEpinRegistrationField(page).inputValue();
     await getEpinRegistrationField(page).fill("");
     await getEpinRegistrationField(page).fill(input.newRegistrationNumber);
     hasChanges = true;
   }
 
   if (input.newChassisNumber) {
-    previousData.chassisNumber = await page.inputValue(SELECTORS.policy.chassisNumberField);
+    previousData.chassisNumber = await page.inputValue(
+      SELECTORS.policy.chassisNumberField,
+    );
     await page.fill(SELECTORS.policy.chassisNumberField, "");
-    await page.fill(SELECTORS.policy.chassisNumberField, input.newChassisNumber);
+    await page.fill(
+      SELECTORS.policy.chassisNumberField,
+      input.newChassisNumber,
+    );
     hasChanges = true;
   }
 
@@ -366,7 +394,9 @@ export async function applyEPINSwap(
   }
 
   if (input.vehicleYear) {
-    previousData.vehicleYear = await page.inputValue(SELECTORS.policy.vehicleYearField).catch(() => "");
+    previousData.vehicleYear = await page
+      .inputValue(SELECTORS.policy.vehicleYearField)
+      .catch(() => "");
     await page.fill(SELECTORS.policy.vehicleYearField, "");
     await page.fill(SELECTORS.policy.vehicleYearField, input.vehicleYear);
     hasChanges = true;
@@ -409,6 +439,155 @@ export async function getEPINPolicyPage(): Promise<Page> {
   }
 
   return loginToEPIN();
+}
+
+export async function openEPINPolicyStatusPage(page: Page): Promise<void> {
+  await page.goto(config.epin.policyStatusUrl, {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
+  await page
+    .waitForLoadState("networkidle", { timeout: 10000 })
+    .catch(() => undefined);
+}
+
+export async function searchEPINPolicyStatus(
+  page: Page,
+  policyNumber: string,
+): Promise<void> {
+  log(`Searching E-PIN policy status for: ${policyNumber}`);
+
+  const policyField = page
+    .locator(SELECTORS.statusPage.policyNumberField)
+    .first();
+  await policyField.waitFor({ state: "visible", timeout: 15000 });
+  await policyField.fill("");
+  await policyField.fill(policyNumber);
+
+  const searchButton = page.locator(SELECTORS.statusPage.searchButton).first();
+  await searchButton.click();
+
+  await page
+    .waitForLoadState("networkidle", { timeout: 15000 })
+    .catch(() => undefined);
+  await page
+    .getByText("Trail Date", { exact: false })
+    .waitFor({ state: "visible", timeout: 15000 })
+    .catch(async () => {
+      await page
+        .getByText("Reset Push", { exact: false })
+        .waitFor({ state: "visible", timeout: 15000 });
+    });
+}
+
+export async function extractEPINPolicyStatus(
+  page: Page,
+  policyNumber: string,
+): Promise<PolicyStatusResult> {
+  const { summaryRows, trailRows } = await page.evaluate(() => {
+    const tables = Array.from(document.querySelectorAll("table"));
+    const extractCells = (row: HTMLTableRowElement) =>
+      Array.from(row.querySelectorAll("th,td")).map(
+        (cell) => cell.textContent?.trim() || "",
+      );
+
+    let summaryRows: PolicyStatusSummaryRow[] = [];
+    let trailRows: PolicyStatusTrailRow[] = [];
+
+    for (const table of tables) {
+      const rows = Array.from(table.querySelectorAll("tr"));
+      if (rows.length < 2) continue;
+
+      const headers = extractCells(rows[0]).map((value) => value.toLowerCase());
+      const hasSummaryHeaders =
+        headers.includes("policyno") &&
+        headers.includes("regno") &&
+        headers.includes("coverdate");
+      const hasTrailHeaders =
+        headers.includes("trail date") &&
+        headers.includes("time") &&
+        headers.includes("response");
+
+      if (hasSummaryHeaders) {
+        summaryRows = rows
+          .slice(1)
+          .map((row) => {
+            const cells = Array.from(row.querySelectorAll("td"));
+            if (cells.length < 7) return null;
+
+            return {
+              policyNo: cells[1]?.textContent?.trim() || "",
+              regNo: cells[2]?.textContent?.trim() || "",
+              coverDate: cells[3]?.textContent?.trim() || "",
+              vehicleMake: cells[4]?.textContent?.trim() || "",
+              vehicleModel: cells[5]?.textContent?.trim() || "",
+              response: cells[6]?.textContent?.trim() || "",
+              canReset: Boolean(
+                cells[0]?.querySelector(
+                  "button, input[type='button'], input[type='submit'], a",
+                ),
+              ),
+            };
+          })
+          .filter(Boolean) as PolicyStatusSummaryRow[];
+      }
+
+      if (hasTrailHeaders) {
+        trailRows = rows
+          .slice(1)
+          .map((row) => {
+            const cells = Array.from(row.querySelectorAll("td"));
+            if (cells.length < 5) return null;
+
+            return {
+              trailDate: cells[0]?.textContent?.trim() || "",
+              time: cells[1]?.textContent?.trim() || "",
+              policyNo: cells[2]?.textContent?.trim() || "",
+              response: cells[3]?.textContent?.trim() || "",
+              server: cells[4]?.textContent?.trim() || "",
+            };
+          })
+          .filter(Boolean) as PolicyStatusTrailRow[];
+      }
+    }
+
+    return { summaryRows, trailRows };
+  });
+
+  return {
+    policyNumber,
+    summaryRows,
+    trailRows,
+  };
+}
+
+export async function resetEPINPolicyStatusPush(
+  page: Page,
+  policyNumber: string,
+): Promise<void> {
+  log(`Resetting E-PIN policy push for: ${policyNumber}`);
+
+  const resetButtonSelector = SELECTORS.statusPage.resetButton.replace(
+    "{policyNumber}",
+    policyNumber,
+  );
+  const resetButton = page.locator(resetButtonSelector).first();
+
+  await resetButton.waitFor({ state: "visible", timeout: 15000 });
+  await resetButton.click({ noWaitAfter: true });
+
+  await waitForOverlayToDisappear(page, "resetEPINPolicyStatusPush");
+  await page
+    .waitForSelector(SELECTORS.statusPage.resetSuccess, { timeout: 20000 })
+    .catch(async () => {
+      await page.waitForLoadState("networkidle", { timeout: 20000 });
+      await page.waitForSelector(SELECTORS.statusPage.resetSuccess, {
+        timeout: 10000,
+      });
+    });
+  await page
+    .waitForLoadState("networkidle", { timeout: 15000 })
+    .catch(() => undefined);
 }
 
 function getEpinRegistrationField(page: Page) {
@@ -457,10 +636,18 @@ async function resolveEpinMakeModelOption(
 
       let score = 0;
       if (optionMake === normalizedMake) score += 100;
-      else if (optionMake.includes(normalizedMake) || normalizedMake.includes(optionMake)) score += 60;
+      else if (
+        optionMake.includes(normalizedMake) ||
+        normalizedMake.includes(optionMake)
+      )
+        score += 60;
 
       if (optionModel === normalizedModel) score += 100;
-      else if (optionModel.includes(normalizedModel) || normalizedModel.includes(optionModel)) score += 60;
+      else if (
+        optionModel.includes(normalizedModel) ||
+        normalizedModel.includes(optionModel)
+      )
+        score += 60;
 
       if (optionFull.includes(normalizedMake)) score += 20;
       if (optionFull.includes(normalizedModel)) score += 20;
