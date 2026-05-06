@@ -575,6 +575,7 @@ export async function extractEPINPolicyStatus(
   return {
     lookupValue,
     lookupType,
+    channel: "epin",
     message: message || undefined,
     summaryRows,
     trailRows,

@@ -25,6 +25,7 @@ import {
   useClosePolicyStatus,
   useResetPolicyStatus,
   useStartPolicyStatus,
+  useTrackPolicyStatus,
 } from '@/queries/usePolicyStatus';
 import type { PolicyStatusTaskState } from '@/hooks/useSSE';
 
@@ -51,6 +52,7 @@ export function PolicyStatusForm({
   const startMutation = useStartPolicyStatus();
   const closeMutation = useClosePolicyStatus();
   const resetMutation = useResetPolicyStatus();
+  const trackMutation = useTrackPolicyStatus();
 
   const currentTasks = useMemo(
     () =>
@@ -87,6 +89,11 @@ export function PolicyStatusForm({
   const handleResetTask = async () => {
     if (!selectedTaskId) return;
     await resetMutation.mutateAsync(selectedTaskId);
+  };
+
+  const handleTrackTask = async () => {
+    if (!selectedTaskId) return;
+    await trackMutation.mutateAsync(selectedTaskId);
   };
 
   return (
@@ -273,6 +280,32 @@ export function PolicyStatusForm({
                   </Table>
                 </div>
               </div>
+
+              {selectedTask.result.detailRows && selectedTask.result.detailRows.length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Full Details
+                  </h4>
+                  <div className="overflow-x-auto rounded-lg border border-border">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow>
+                          <TableHead>Field</TableHead>
+                          <TableHead>Value</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedTask.result.detailRows.map((row, index) => (
+                          <TableRow key={`${row.label}-${index}`}>
+                            <TableCell>{row.label}</TableCell>
+                            <TableCell>{row.value}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -293,11 +326,36 @@ export function PolicyStatusForm({
             <Button
               type="button"
               variant="outline"
+              onClick={handleTrackTask}
+              disabled={
+                !selectedTask ||
+                trackMutation.isPending ||
+                selectedTask.status !== 'awaiting_user_action' ||
+                selectedTask.result?.channel !== 'scratch_card' ||
+                (selectedTask.result?.detailRows?.length || 0) > 0
+              }
+            >
+              {trackMutation.isPending ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Tracking...
+                </>
+              ) : (
+                <>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Track Details
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleResetTask}
               disabled={
                 !selectedTask ||
                 resetMutation.isPending ||
                 selectedTask.status !== 'awaiting_user_action' ||
+                selectedTask.result?.channel !== 'epin' ||
                 !selectedTask.result?.summaryRows.some((row) => row.canReset)
               }
             >

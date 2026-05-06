@@ -61,3 +61,21 @@ export function useResetPolicyStatus() {
     },
   });
 }
+
+export function useTrackPolicyStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: api.trackPolicyStatus,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policy-status-logs'] });
+      sileo.success({ title: 'Scratch-card details tracking started' });
+    },
+    onError: (error: Error) => {
+      sileo.error({
+        title: 'Failed to track scratch-card details',
+        description: error.message || 'Something went wrong',
+      });
+    },
+  });
+}

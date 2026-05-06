@@ -261,6 +261,7 @@ const pushMethodLabel = (method: string) => {
 };
 
 const policyStatusLookupLabel = (lookupType?: string) => {
+  if (lookupType === 'certificate') return 'Certificate No';
   return lookupType === 'registration' ? 'Reg Number' : 'Policy Number';
 };
 
@@ -585,6 +586,32 @@ function PolicyStatusDetailDialog({
                         <TableCell>{row.policyNo}</TableCell>
                         <TableCell>{row.response}</TableCell>
                         <TableCell>{row.server}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {item.result?.detailRows?.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Full Details
+              </h4>
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead>Field</TableHead>
+                      <TableHead>Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {item.result.detailRows.map((row: any, index: number) => (
+                      <TableRow key={`${row.label}-${index}`}>
+                        <TableCell>{row.label}</TableCell>
+                        <TableCell>{row.value}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

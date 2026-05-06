@@ -74,8 +74,10 @@ export type CorrectionInput =
 
 export interface PolicyStatusInput {
   lookupValue: string;
-  lookupType?: "policy_number" | "registration";
+  lookupType?: "policy_number" | "registration" | "certificate";
 }
+
+export type PolicyStatusChannel = "epin" | "scratch_card";
 
 export interface PolicyStatusSummaryRow {
   policyNo: string;
@@ -97,10 +99,12 @@ export interface PolicyStatusTrailRow {
 
 export interface PolicyStatusResult {
   lookupValue: string;
-  lookupType: "policy_number" | "registration";
+  lookupType: "policy_number" | "registration" | "certificate";
+  channel: PolicyStatusChannel;
   message?: string;
   summaryRows: PolicyStatusSummaryRow[];
   trailRows: PolicyStatusTrailRow[];
+  detailRows?: Array<{ label: string; value: string }>;
 }
 
 // ============================================
@@ -153,6 +157,7 @@ export interface PolicyStatusTask {
 
 export type SiteName =
   | "ag"
+  | "ag_status"
   | "niid"
   | "epin"
   | "niip"
@@ -184,6 +189,7 @@ export interface AgentStatus {
   workerPool: WorkerPoolStatus;
   sessions: {
     ag: SessionStatus;
+    ag_status: SessionStatus;
     ag_push: SessionStatus;
     niid: SessionStatus;
     niid_push: SessionStatus;
@@ -354,6 +360,7 @@ export interface UserSettings {
 export interface Config {
   ag: {
     url: string;
+    policyStatusUrl: string;
     spoolUrl: string;
     username: string;
     password: string;

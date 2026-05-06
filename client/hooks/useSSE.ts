@@ -45,10 +45,12 @@ interface PolicyStatusTrailRow {
 
 interface PolicyStatusResult {
   lookupValue: string;
-  lookupType: 'policy_number' | 'registration';
+  lookupType: 'policy_number' | 'registration' | 'certificate';
+  channel: 'epin' | 'scratch_card';
   message?: string;
   summaryRows: PolicyStatusSummaryRow[];
   trailRows: PolicyStatusTrailRow[];
+  detailRows?: Array<{ label: string; value: string }>;
 }
 
 export interface PolicyStatusTaskState {

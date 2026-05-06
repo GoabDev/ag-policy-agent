@@ -72,6 +72,8 @@ export const closePolicyStatus = (taskId: string) =>
   api.post(`/api/pol-status/${taskId}/close`);
 export const resetPolicyStatus = (taskId: string) =>
   api.post(`/api/pol-status/${taskId}/reset`);
+export const trackPolicyStatus = (taskId: string) =>
+  api.post(`/api/pol-status/${taskId}/track`);
 
 // Policy Push
 export const pushPolicy = (data: { method: string; policyNumber?: string; fromDate?: string; toDate?: string }) => {

@@ -26,6 +26,7 @@ const SESSION_INACTIVITY_TIMEOUT = config.sessionInactivityTimeout;
 // Pages we stay parked on - where the automation work happens
 const PARK_PAGES: Record<SiteName, string> = {
   ag: process.env.AG_POLICY_UPDATE_URL || "",
+  ag_status: config.ag.policyStatusUrl,
   epin: config.epin.parkUrl,
   niid: config.niid.policyCorrectionUrl,
   niip: config.niip.parkUrl,
@@ -38,6 +39,7 @@ const PARK_PAGES: Record<SiteName, string> = {
 // URLs that indicate expired sessions
 const SESSION_EXPIRED_INDICATORS: Record<SiteName, string> = {
   ag: "ErrorPage.aspx",
+  ag_status: "ErrorPage.aspx",
   ag_push: "ErrorPage.aspx",
   epin: "/Account/Login",
   ag_auto_push: "ErrorPage.aspx",

@@ -25,6 +25,7 @@ import {
   getPolicyStatusHistory,
   resetPolicyStatus,
   startPolicyStatus,
+  trackPolicyStatus,
 } from "./agents/policyStatusRunner";
 import { getPoolStatus, destroyAllWorkers } from "./browser/workerPool";
 import { CorrectionInput, PolicyPushInput, PolicyStatusInput } from "./types";
@@ -494,6 +495,21 @@ app.post("/api/pol-status/:taskId/reset", async (req, res) => {
     }
 
     res.json({ success: true, data: { message: "Policy status reset started" } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/pol-status/:taskId/track", async (req, res) => {
+  try {
+    const tracked = await trackPolicyStatus(req.params.taskId);
+    if (!tracked) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Policy status task not found" });
+    }
+
+    res.json({ success: true, data: { message: "Scratch-card track started" } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

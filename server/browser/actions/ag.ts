@@ -4,6 +4,7 @@ import path from "path";
 import { config } from "../../config";
 import { getPage, saveSession, touchSession } from "../controller";
 import { log } from "../../utils/logger";
+import { PolicyStatusResult, PolicyStatusSummaryRow } from "../../types";
 
 // ============================================
 // SELECTORS — Update these after mapping the real site
@@ -56,6 +57,14 @@ const SELECTORS = {
     error: 'internal:text="Sorry. The Policy Number you"',
     successMessage: 'internal:text="Record successfully Updated."i',
   },
+  statusPage: {
+    policyNumberField: 'internal:role=textbox[name="Search by Policy No"i]',
+    certificateField: 'internal:role=textbox[name="Search by Certificate No"i]',
+    policySearchButton: "#btnPolicy",
+    certificateSearchButton: "#btnCert",
+    tables: "table",
+    trackButton: 'internal:role=link[name="Track"i]',
+  },
 };
 
 // ============================================
@@ -80,7 +89,11 @@ export async function loginToAG(
     await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
       timeout: 5000,
     });
-    log(isAutomatedPush ? "Already logged into A&G Automated Push" : "Already logged into A&G");
+    log(
+      isAutomatedPush
+        ? "Already logged into A&G Automated Push"
+        : "Already logged into A&G",
+    );
     touchSession(site);
   } catch {
     // Not logged in, proceed with login
@@ -102,7 +115,10 @@ export async function loginToAG(
       });
       log("A&G Automated Push page navigated to spool page");
     } catch (err: any) {
-      log(`Failed to navigate A&G Automated Push page to spool: ${err.message}`, "warn");
+      log(
+        `Failed to navigate A&G Automated Push page to spool: ${err.message}`,
+        "warn",
+      );
     }
   } else {
     // Also set up the ag_push page in the same context (shared cookies)
@@ -119,7 +135,11 @@ export async function loginToAG(
   }
 
   await saveSession(site);
-  log(isAutomatedPush ? "A&G Automated Push login successful" : "A&G login successful ✅");
+  log(
+    isAutomatedPush
+      ? "A&G Automated Push login successful"
+      : "A&G login successful ✅",
+  );
 
   return page;
 }
@@ -136,6 +156,153 @@ export async function navigateToPolicy(page: Page): Promise<void> {
 
   // Click into the policy
   await page.click(SELECTORS.navigator.updatePolicy);
+}
+
+export async function openAGPolicyStatusPage(page: Page): Promise<void> {
+  await page.goto(config.ag.policyStatusUrl, {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
+  await page
+    .waitForLoadState("networkidle", { timeout: 10000 })
+    .catch(() => undefined);
+}
+
+export async function searchAGPolicyStatus(
+  page: Page,
+  lookupValue: string,
+  lookupType: "policy_number" | "certificate",
+): Promise<void> {
+  log(`Searching scratch-card policy status by ${lookupType}: ${lookupValue}`);
+
+  const input =
+    lookupType === "certificate"
+      ? page.locator(SELECTORS.statusPage.certificateField).first()
+      : page.locator(SELECTORS.statusPage.policyNumberField).first();
+  const button =
+    lookupType === "certificate"
+      ? page.locator(SELECTORS.statusPage.certificateSearchButton).first()
+      : page.locator(SELECTORS.statusPage.policySearchButton).first();
+
+  await input.waitFor({ state: "visible", timeout: 15000 });
+  await input.fill("");
+  await input.fill(lookupValue);
+  await button.click();
+
+  await page
+    .waitForLoadState("networkidle", { timeout: 15000 })
+    .catch(() => undefined);
+  await page
+    .getByText("View Complete Details", { exact: false })
+    .waitFor({ state: "visible", timeout: 15000 })
+    .catch(() => undefined);
+}
+
+export async function extractAGPolicyStatusSummary(
+  page: Page,
+  lookupValue: string,
+  lookupType: "policy_number" | "certificate",
+): Promise<PolicyStatusResult> {
+  const summaryRows = await page.evaluate(() => {
+    const tables = Array.from(document.querySelectorAll("table"));
+    const extractCells = (row: HTMLTableRowElement) =>
+      Array.from(row.querySelectorAll("th,td")).map(
+        (cell) => cell.textContent?.trim() || "",
+      );
+
+    for (const table of tables) {
+      const rows = Array.from(table.querySelectorAll("tr"));
+      if (rows.length < 2) continue;
+      const headers = extractCells(rows[0]).map((value) => value.toLowerCase());
+      const isSummary =
+        headers.includes("status") &&
+        headers.includes("policyno") &&
+        headers.includes("insured");
+
+      if (!isSummary) continue;
+
+      return rows
+        .slice(1)
+        .map((row) => {
+          const cells = Array.from(row.querySelectorAll("td"));
+          if (cells.length < 6) return null;
+          return {
+            policyNo: cells[2]?.textContent?.trim() || "",
+            regNo: cells[4]?.textContent?.trim() || "",
+            coverDate: cells[5]?.textContent?.trim() || "",
+            vehicleMake: "",
+            vehicleModel: "",
+            response: cells[1]?.textContent?.trim() || "",
+            canReset: Boolean(
+              cells[0]?.querySelector(
+                "button, input[type='button'], input[type='submit'], a",
+              ),
+            ),
+          };
+        })
+        .filter(Boolean) as PolicyStatusSummaryRow[];
+    }
+
+    return [] as PolicyStatusSummaryRow[];
+  });
+
+  return {
+    lookupValue,
+    lookupType,
+    channel: "scratch_card",
+    summaryRows,
+    trailRows: [],
+  };
+}
+
+export async function trackAGPolicyStatusDetails(
+  page: Page,
+  lookupValue: string,
+): Promise<void> {
+  log(`Tracking scratch-card status details for: ${lookupValue}`);
+  const trackButton = page
+    .getByRole("link", { name: "Track", exact: true })
+    .first();
+  await trackButton.waitFor({ state: "visible", timeout: 15000 });
+  await trackButton.click();
+  await page
+    .waitForLoadState("networkidle", { timeout: 15000 })
+    .catch(() => undefined);
+  await page
+    .getByText("Transaction Tracker", { exact: false })
+    .waitFor({ state: "visible", timeout: 15000 });
+}
+
+export async function extractAGPolicyStatusDetails(
+  page: Page,
+): Promise<Array<{ label: string; value: string }>> {
+  return page.evaluate(() => {
+    const tables = Array.from(document.querySelectorAll("table"));
+    const details: Array<{ label: string; value: string }> = [];
+
+    for (const table of tables) {
+      const rows = Array.from(table.querySelectorAll("tr"));
+      if (rows.length < 2) continue;
+      const headerCells = Array.from(rows[0].querySelectorAll("th")).map(
+        (cell) => cell.textContent?.trim().toLowerCase() || "",
+      );
+      const isDetailTable =
+        headerCells.includes("transaction record") &&
+        headerCells.includes("data");
+      if (!isDetailTable) continue;
+
+      rows.slice(1).forEach((row) => {
+        const cells = Array.from(row.querySelectorAll("td"));
+        if (cells.length < 2) return;
+        details.push({
+          label: cells[0]?.textContent?.trim() || "",
+          value: cells[1]?.textContent?.trim() || "",
+        });
+      });
+    }
+
+    return details;
+  });
 }
 // ============================================
 // Search for a policy by number

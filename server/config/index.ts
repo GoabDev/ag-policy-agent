@@ -51,6 +51,10 @@ export const config: Config = Object.seal({
   // A&G Platform
   ag: {
     url: getEnv("AG_URL"),
+    policyStatusUrl: getEnv(
+      "AG_POLICY_STATUS_URL",
+      "https://3rdparty.card.aginsuranceapplications.com/Utility/VerifyData.aspx",
+    ),
     spoolUrl: getEnv("AG_SPOOL_URL", process.env.AG_POLICY_SPOOL_URL),
     username: getEnv("AG_USERNAME"),
     password: getEnv("AG_PASSWORD"),
