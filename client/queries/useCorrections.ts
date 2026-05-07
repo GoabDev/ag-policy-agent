@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sileo } from 'sileo';
 import * as api from '@/service/api';
 
-export function useLogs() {
+export function useLogs(
+  params: { page?: number; pageSize?: number; search?: string } = {},
+) {
   return useQuery({
-    queryKey: ['logs'],
-    queryFn: api.getLogs,
+    queryKey: ['logs', params.page || 1, params.pageSize || 20, params.search || ''],
+    queryFn: () => api.getLogs(params),
   });
 }
 
@@ -55,9 +57,11 @@ export function usePushPolicy() {
   });
 }
 
-export function usePushLogs() {
+export function usePushLogs(
+  params: { page?: number; pageSize?: number; search?: string } = {},
+) {
   return useQuery({
-    queryKey: ['push-logs'],
-    queryFn: api.getPushLogs,
+    queryKey: ['push-logs', params.page || 1, params.pageSize || 20, params.search || ''],
+    queryFn: () => api.getPushLogs(params),
   });
 }

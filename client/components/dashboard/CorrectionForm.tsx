@@ -25,6 +25,7 @@ export function CorrectionForm({
   activeTasks: TaskState[],
   tasks: Map<string, TaskState>,
 }) {
+  const [vehicleModelEntryMode, setVehicleModelEntryMode] = React.useState<'select' | 'manual'>('select');
   const runMutation = useRunCorrection();
   const cancelMutation = useCancelCorrection();
 
@@ -230,6 +231,7 @@ export function CorrectionForm({
                     onChange={(val) => {
                       setValue('newVehicleMake', val);
                       setValue('newVehicleModel', ''); // Reset model when make changes
+                      setVehicleModelEntryMode('select');
                     }}
                     placeholder="Select vehicle make..."
                     searchPlaceholder="Search makes..."
@@ -246,8 +248,25 @@ export function CorrectionForm({
                 )}
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vehicle Model</label>
-                {modelsForMake.length > 0 ? (
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vehicle Model</label>
+                  {selectedMake && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                      onClick={() =>
+                        setVehicleModelEntryMode((current) =>
+                          current === 'manual' ? 'select' : 'manual'
+                        )
+                      }
+                    >
+                      {vehicleModelEntryMode === 'manual' ? 'Pick from list' : 'Enter manually'}
+                    </Button>
+                  )}
+                </div>
+                {modelsForMake.length > 0 && vehicleModelEntryMode !== 'manual' ? (
                   <Combobox
                     options={modelsForMake}
                     value={watch('newVehicleModel') || ''}
@@ -258,10 +277,21 @@ export function CorrectionForm({
                 ) : (
                   <Input
                     {...register('newVehicleModel')}
-                    placeholder={selectedMake ? "No models loaded" : "Select a make first"}
+                    placeholder={
+                      selectedMake
+                        ? modelsForMake.length > 0
+                          ? 'Type vehicle model manually'
+                          : 'No models loaded for this make, type manually'
+                        : 'Select a make first'
+                    }
                     className="bg-background border-border focus-visible:ring-primary/50"
                     disabled={!selectedMake}
                   />
+                )}
+                {selectedMake && modelsForMake.length > 0 && vehicleModelEntryMode === 'manual' && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Manual model entry is allowed. The system will still try to match what you type to the closest available site option.
+                  </p>
                 )}
                 {(errors as any).newVehicleModel && (
                   <p className="text-[10px] text-destructive">{(errors as any).newVehicleModel.message}</p>
@@ -316,7 +346,16 @@ export function CorrectionForm({
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Phone</label>
-                  <Input {...register('phone')} placeholder="Optional" className="bg-background border-border focus-visible:ring-primary/50" />
+                  <Input
+                    {...register('phone')}
+                    placeholder="e.g. 08012345678"
+                    inputMode="numeric"
+                    maxLength={11}
+                    className="bg-background border-border focus-visible:ring-primary/50"
+                  />
+                  {(errors as any).phone && (
+                    <p className="text-[10px] text-destructive">{String((errors as any).phone.message)}</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Engine Number</label>
@@ -328,6 +367,7 @@ export function CorrectionForm({
                     options={VEHICLE_COLOR_OPTIONS}
                     value={watch('vehicleColor') || ''}
                     onChange={(val) => setValue('vehicleColor', val)}
+                    clearLabel="No color change"
                     placeholder="Select vehicle color..."
                     searchPlaceholder="Search colors..."
                   />

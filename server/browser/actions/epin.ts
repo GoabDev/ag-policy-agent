@@ -9,7 +9,10 @@ import {
   SwapCorrectionInput,
 } from "../../types";
 import { normalizeVehicleColor } from "../../utils/vehicleOptions";
-import { getNetworkTimeoutMs, getQuickCheckTimeoutMs } from "../timeoutSettings";
+import {
+  getNetworkTimeoutMs,
+  getQuickCheckTimeoutMs,
+} from "../timeoutSettings";
 
 const SELECTORS = {
   login: {
@@ -57,6 +60,7 @@ const SELECTORS = {
     searchPolicyButton: "btnpolicyno",
     searchRegButton: "#btnregno",
     tables: "table",
+    trackButton: 'internal:role=link[name="Track"i]',
     resetButton: 'internal:role=link[name="Reset"i]',
     resetMessage: "#lblmessage",
   },
@@ -463,7 +467,10 @@ export async function searchEPINPolicyStatus(
     lookupType === "registration"
       ? page.locator(SELECTORS.statusPage.regNumberField).first()
       : page.locator(SELECTORS.statusPage.policyNumberField).first();
-  await searchField.waitFor({ state: "visible", timeout: getNetworkTimeoutMs() });
+  await searchField.waitFor({
+    state: "visible",
+    timeout: getNetworkTimeoutMs(),
+  });
   await searchField.fill("");
   await searchField.fill(lookupValue);
 
@@ -487,7 +494,9 @@ export async function searchEPINPolicyStatus(
     page
       .getByText("Reset Push", { exact: false })
       .waitFor({ state: "visible", timeout: getNetworkTimeoutMs() }),
-    page.waitForSelector(SELECTORS.statusPage.resetMessage, { timeout: getNetworkTimeoutMs() }),
+    page.waitForSelector(SELECTORS.statusPage.resetMessage, {
+      timeout: getNetworkTimeoutMs(),
+    }),
   ]).catch(() => undefined);
 }
 
@@ -583,6 +592,90 @@ export async function extractEPINPolicyStatus(
   };
 }
 
+export async function trackEPINPolicyStatusDetails(
+  page: Page,
+  lookupValue: string,
+): Promise<void> {
+  log(`Tracking E-PIN status details for: ${lookupValue}`);
+
+  const trackButton = page.locator(SELECTORS.statusPage.trackButton).first();
+  await trackButton.waitFor({
+    state: "visible",
+    timeout: getNetworkTimeoutMs(),
+  });
+  await trackButton.click();
+
+  await page
+    .waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() })
+    .catch(() => undefined);
+  await page
+    .getByText("Transaction Tracker", { exact: false })
+    .waitFor({ state: "visible", timeout: getNetworkTimeoutMs() });
+}
+
+export async function extractEPINPolicyStatusDetails(page: Page): Promise<{
+  detailRows: Array<{ label: string; value: string }>;
+  trailRows: PolicyStatusTrailRow[];
+}> {
+  return page.evaluate(() => {
+    const extractCells = (row: HTMLTableRowElement) =>
+      Array.from(row.querySelectorAll("th,td")).map(
+        (cell) => cell.textContent?.trim() || "",
+      );
+
+    const tables = Array.from(document.querySelectorAll("table"));
+    const detailRows: Array<{ label: string; value: string }> = [];
+    let trailRows: PolicyStatusTrailRow[] = [];
+
+    for (const table of tables) {
+      const rows = Array.from(table.querySelectorAll("tr"));
+      if (rows.length < 2) continue;
+
+      const headers = extractCells(rows[0]).map((value) => value.toLowerCase());
+      const isDetailTable =
+        headers.includes("transaction record") && headers.includes("data");
+      const isAuditTrailTable =
+        headers.includes("date") &&
+        headers.includes("event") &&
+        headers.includes("time") &&
+        headers.includes("username");
+
+      if (isDetailTable) {
+        rows.slice(1).forEach((row) => {
+          const cells = Array.from(row.querySelectorAll("td"));
+          if (cells.length < 2) return;
+
+          const label = cells[0]?.textContent?.trim() || "";
+          const value = cells[1]?.textContent?.trim() || "";
+          if (!label && !value) return;
+
+          detailRows.push({ label, value });
+        });
+      }
+
+      if (isAuditTrailTable) {
+        trailRows = rows
+          .slice(1)
+          .map((row) => {
+            const cells = Array.from(row.querySelectorAll("td"));
+            if (cells.length < 4) return null;
+
+            return {
+              trailDate: cells[0]?.textContent?.trim() || "",
+              response: cells[1]?.textContent?.trim() || "",
+              time: cells[2]?.textContent?.trim() || "",
+              server: cells[3]?.textContent?.trim() || "",
+              policyNo: "",
+            };
+          })
+          .filter(Boolean) as PolicyStatusTrailRow[];
+      }
+    }
+
+    return { detailRows, trailRows };
+  });
+}
+
 export async function resetEPINPolicyStatusPush(
   page: Page,
   policyNumber: string,
@@ -595,14 +688,21 @@ export async function resetEPINPolicyStatusPush(
   );
   const resetButton = page.locator(resetButtonSelector).first();
 
-  await resetButton.waitFor({ state: "visible", timeout: getNetworkTimeoutMs() });
+  await resetButton.waitFor({
+    state: "visible",
+    timeout: getNetworkTimeoutMs(),
+  });
   await resetButton.click({ noWaitAfter: true });
 
   await waitForOverlayToDisappear(page, "resetEPINPolicyStatusPush");
   await page
-    .waitForSelector(SELECTORS.statusPage.resetMessage, { timeout: getNetworkTimeoutMs() })
+    .waitForSelector(SELECTORS.statusPage.resetMessage, {
+      timeout: getNetworkTimeoutMs(),
+    })
     .catch(async () => {
-      await page.waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() });
+      await page.waitForLoadState("networkidle", {
+        timeout: getNetworkTimeoutMs(),
+      });
       await page.waitForSelector(SELECTORS.statusPage.resetMessage, {
         timeout: getNetworkTimeoutMs(),
       });

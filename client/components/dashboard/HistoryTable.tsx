@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useLogs, usePushLogs } from '@/queries/useCorrections';
@@ -245,7 +246,7 @@ function DetailRow({
   );
 }
 
-const corrLabel = (type: string) => {
+export const corrLabel = (type: string) => {
   return {
     name: 'Name',
     registration: 'Reg No.',
@@ -256,16 +257,16 @@ const corrLabel = (type: string) => {
   }[type] || type;
 };
 
-const pushMethodLabel = (method: string) => {
+export const pushMethodLabel = (method: string) => {
   return { policy_number: 'Single Policy', date_range: 'Date Range' }[method] || method;
 };
 
-const policyStatusLookupLabel = (lookupType?: string) => {
+export const policyStatusLookupLabel = (lookupType?: string) => {
   if (lookupType === 'certificate') return 'Certificate No';
   return lookupType === 'registration' ? 'Reg Number' : 'Policy Number';
 };
 
-function CorrectionDetailDialog({
+export function CorrectionDetailDialog({
   item,
   open,
   onOpenChange,
@@ -368,7 +369,7 @@ function CorrectionDetailDialog({
   );
 }
 
-function PushDetailDialog({
+export function PushDetailDialog({
   item,
   open,
   onOpenChange,
@@ -480,7 +481,7 @@ function PushDetailDialog({
   );
 }
 
-function PolicyStatusDetailDialog({
+export function PolicyStatusDetailDialog({
   item,
   open,
   onOpenChange,
@@ -655,22 +656,37 @@ function PolicyStatusDetailDialog({
 }
 
 function CorrectionHistoryTab() {
-  const { data: history, isLoading, refetch } = useLogs();
+  const router = useRouter();
+  const { data: history, isLoading, refetch } = useLogs({ page: 1, pageSize: 10 });
   const [selected, setSelected] = useState<any>(null);
+  const items = history?.data?.items || [];
 
   return (
     <div>
-      <div className="flex justify-end border-b border-border px-4 py-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => refetch()}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <span className="text-xs text-muted-foreground">
+          Showing {items.length} of {history?.data?.pagination?.total || 0}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => router.push('/history?tab=corrections')}
+          >
+            View all
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => refetch()}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <Table>
@@ -694,14 +710,14 @@ function CorrectionHistoryTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {history?.data?.length === 0 ? (
+            {items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                   No corrections yet
                 </TableCell>
               </TableRow>
             ) : (
-              history?.data?.slice(0, 10).map((h: any) => (
+              items.map((h: any) => (
                 <TableRow
                   key={h.id}
                   className="cursor-pointer border-border transition-colors hover:bg-accent/50"
@@ -743,22 +759,37 @@ function CorrectionHistoryTab() {
 }
 
 function PushHistoryTab() {
-  const { data: history, isLoading, refetch } = usePushLogs();
+  const router = useRouter();
+  const { data: history, isLoading, refetch } = usePushLogs({ page: 1, pageSize: 10 });
   const [selected, setSelected] = useState<any>(null);
+  const items = history?.data?.items || [];
 
   return (
     <div>
-      <div className="flex justify-end border-b border-border px-4 py-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => refetch()}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <span className="text-xs text-muted-foreground">
+          Showing {items.length} of {history?.data?.pagination?.total || 0}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => router.push('/history?tab=pushes')}
+          >
+            View all
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => refetch()}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <Table>
@@ -782,14 +813,14 @@ function PushHistoryTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {history?.data?.length === 0 ? (
+            {items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                   No push history yet
                 </TableCell>
               </TableRow>
             ) : (
-              history?.data?.slice(0, 10).map((h: any) => (
+              items.map((h: any) => (
                 <TableRow
                   key={h.id}
                   className="cursor-pointer border-border transition-colors hover:bg-accent/50"
@@ -839,22 +870,37 @@ function PushHistoryTab() {
 }
 
 function PolicyStatusHistoryTab() {
-  const { data: history, isLoading, refetch } = usePolicyStatusLogs();
+  const router = useRouter();
+  const { data: history, isLoading, refetch } = usePolicyStatusLogs({ page: 1, pageSize: 10 });
   const [selected, setSelected] = useState<any>(null);
+  const items = history?.data?.items || [];
 
   return (
     <div>
-      <div className="flex justify-end border-b border-border px-4 py-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => refetch()}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <span className="text-xs text-muted-foreground">
+          Showing {items.length} of {history?.data?.pagination?.total || 0}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => router.push('/history?tab=polstatus')}
+          >
+            View all
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => refetch()}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <Table>
@@ -878,14 +924,14 @@ function PolicyStatusHistoryTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {history?.data?.length === 0 ? (
+            {items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                   No policy status history yet
                 </TableCell>
               </TableRow>
             ) : (
-              history?.data?.slice(0, 10).map((h: any) => (
+              items.map((h: any) => (
                 <TableRow
                   key={h.id}
                   className="cursor-pointer border-border transition-colors hover:bg-accent/50"

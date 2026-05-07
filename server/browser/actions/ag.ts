@@ -473,12 +473,28 @@ export async function correctVehicleMake(
   log(`Correcting vehicle make to: ${newMake} and model to: ${newModel}`);
 
   // Vehicle Make and Model are <select> dropdowns, not text inputs
-  await page.selectOption(SELECTORS.policy.vehicleMakeField, newMake);
+  const resolvedMake = await resolveAGOption(
+    page,
+    SELECTORS.policy.vehicleMakeField,
+    newMake,
+    "vehicle make",
+  );
+  await page.selectOption(SELECTORS.policy.vehicleMakeField, {
+    label: resolvedMake,
+  });
 
   // Selecting a make triggers an ASP.NET postback to populate the model dropdown
   await waitForOverlayToDisappear(page, "correctVehicleMake:makePostback");
 
-  await page.selectOption(SELECTORS.policy.vehicleModelField, newModel);
+  const resolvedModel = await resolveAGOption(
+    page,
+    SELECTORS.policy.vehicleModelField,
+    newModel,
+    "vehicle model",
+  );
+  await page.selectOption(SELECTORS.policy.vehicleModelField, {
+    label: resolvedModel,
+  });
 
   await page.click(SELECTORS.policy.saveButton);
 
@@ -924,3 +940,57 @@ async function fetchModelsInBackground(
 
 // Export selectors so they can be updated from config later
 export { SELECTORS as AG_SELECTORS };
+
+function normalizeVehicleToken(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+async function resolveAGOption(
+  page: Page,
+  selector: string,
+  input: string,
+  fieldLabel: string,
+): Promise<string> {
+  const normalizedInput = normalizeVehicleToken(input);
+
+  const options = await page.$eval(selector, (el) =>
+    Array.from((el as HTMLSelectElement).options)
+      .map((option) => option.text.trim())
+      .filter(Boolean),
+  );
+
+  const ranked = options
+    .map((option) => {
+      const normalizedOption = normalizeVehicleToken(option);
+      let score = 0;
+
+      if (normalizedOption === normalizedInput) score += 100;
+      else if (
+        normalizedOption.includes(normalizedInput) ||
+        normalizedInput.includes(normalizedOption)
+      ) {
+        score += 60;
+      }
+
+      return { option, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (ranked.length === 0) {
+    throw new Error(`No A&G ${fieldLabel} option matched "${input}"`);
+  }
+
+  if (ranked.length === 1 || ranked[0].score > ranked[1].score) {
+    return ranked[0].option;
+  }
+
+  const topCandidates = ranked
+    .filter((entry) => entry.score === ranked[0].score)
+    .slice(0, 5)
+    .map((entry) => entry.option);
+
+  throw new Error(
+    `A&G ${fieldLabel} was ambiguous for "${input}". Candidates: ${topCandidates.join(" | ")}`,
+  );
+}

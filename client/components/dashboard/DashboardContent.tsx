@@ -71,7 +71,7 @@ export default function DashboardContent() {
         </div>
 
         <footer className="mt-16 text-center text-muted-foreground text-[10px] tracking-widest uppercase font-bold">
-          A&G Insurance - Policy Agent v2.3.0
+          A&G Insurance - Policy Agent v2.3.1
         </footer>
       </div>
     </div>

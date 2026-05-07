@@ -96,6 +96,12 @@ export function PolicyStatusForm({
     await trackMutation.mutateAsync(selectedTaskId);
   };
 
+  const canTrackDetails =
+    !!selectedTask &&
+    selectedTask.status === 'awaiting_user_action' &&
+    (selectedTask.result?.channel === 'scratch_card' || selectedTask.result?.channel === 'epin') &&
+    (selectedTask.result?.detailRows?.length || 0) === 0;
+
   return (
     <>
       <Card className="overflow-hidden border-border bg-card shadow-xl">
@@ -327,13 +333,7 @@ export function PolicyStatusForm({
               type="button"
               variant="outline"
               onClick={handleTrackTask}
-              disabled={
-                !selectedTask ||
-                trackMutation.isPending ||
-                selectedTask.status !== 'awaiting_user_action' ||
-                selectedTask.result?.channel !== 'scratch_card' ||
-                (selectedTask.result?.detailRows?.length || 0) > 0
-              }
+              disabled={!canTrackDetails || trackMutation.isPending}
             >
               {trackMutation.isPending ? (
                 <>

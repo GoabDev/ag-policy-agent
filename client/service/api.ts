@@ -1,8 +1,12 @@
 import api from './config/axios';
 
 export const getStatus = () => api.get('/api/status');
-export const getLogs = () => api.get('/api/corrections/logs');
-export const getPolicyStatusLogs = () => api.get('/api/pol-status/logs');
+export const getLogs = (
+  params: { page?: number; pageSize?: number; search?: string } = {},
+) => api.get('/api/corrections/logs', { params });
+export const getPolicyStatusLogs = (
+  params: { page?: number; pageSize?: number; search?: string } = {},
+) => api.get('/api/pol-status/logs', { params });
 
 export const runCorrection = (data: any) => {
   const body: any = { 
@@ -79,7 +83,9 @@ export const trackPolicyStatus = (taskId: string) =>
 export const pushPolicy = (data: { method: string; policyNumber?: string; fromDate?: string; toDate?: string }) => {
   return api.post('/api/policy-push/run', data);
 };
-export const getPushLogs = () => api.get('/api/policy-push/logs');
+export const getPushLogs = (
+  params: { page?: number; pageSize?: number; search?: string } = {},
+) => api.get('/api/policy-push/logs', { params });
 
 // Automated Agent
 const automatedAgentAuth = (token: string) => ({

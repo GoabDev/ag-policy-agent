@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sileo } from 'sileo';
 import * as api from '@/service/api';
 
-export function usePolicyStatusLogs() {
+export function usePolicyStatusLogs(
+  params: { page?: number; pageSize?: number; search?: string } = {},
+) {
   return useQuery({
-    queryKey: ['policy-status-logs'],
-    queryFn: api.getPolicyStatusLogs,
+    queryKey: ['policy-status-logs', params.page || 1, params.pageSize || 20, params.search || ''],
+    queryFn: () => api.getPolicyStatusLogs(params),
   });
 }
 

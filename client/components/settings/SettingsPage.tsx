@@ -418,7 +418,7 @@ export default function SettingsPage() {
                 <div>
                   <Label className="text-sm font-medium">Current version</Label>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Installed app release: v2.3.0
+                    Installed app release: v2.3.1
                   </p>
                 </div>
                 <Button
@@ -513,7 +513,7 @@ export default function SettingsPage() {
         </div>
 
         <footer className="mt-16 text-center text-muted-foreground text-[10px] tracking-widest uppercase font-bold">
-          A&G Insurance - Policy Agent v2.3.0
+          A&G Insurance - Policy Agent v2.3.1
         </footer>
       </div>
     </div>

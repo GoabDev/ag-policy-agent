@@ -18,10 +18,12 @@ import {
   trackAGPolicyStatusDetails,
 } from "../browser/actions/ag";
 import {
+  extractEPINPolicyStatusDetails,
   extractEPINPolicyStatus,
   openEPINPolicyStatusPage,
   resetEPINPolicyStatusPush,
   searchEPINPolicyStatus,
+  trackEPINPolicyStatusDetails,
 } from "../browser/actions/epin";
 import { emitEvent, log, saveTaskLog } from "../utils/logger";
 import { touchSession, touchWorkActivity } from "../browser/controller";
@@ -351,8 +353,13 @@ export async function trackPolicyStatus(taskId: string): Promise<boolean> {
   if (task.status !== "awaiting_user_action") {
     throw new Error("Policy status task is not awaiting user action");
   }
-  if (task.result?.channel !== "scratch_card") {
-    throw new Error("Track Details is only available for scratch-card policy status");
+  if (
+    task.result?.channel !== "scratch_card" &&
+    task.result?.channel !== "epin"
+  ) {
+    throw new Error(
+      "Track Details is only available for supported policy status results",
+    );
   }
 
   const workerId = taskWorkers.get(task.id);
@@ -366,45 +373,86 @@ export async function trackPolicyStatus(taskId: string): Promise<boolean> {
   }
 
   try {
-    touchWorkActivity("ag_status");
     addStep(task, createStep("Track details requested by user", "success"));
-
-    const page = await prepareWorkerCardStatusPage(worker);
     const lookupType =
       task.input.lookupType || detectPolicyStatusLookupType(task.input.lookupValue);
-    const scratchLookupType =
-      lookupType === "certificate" ? "certificate" : "policy_number";
+    if (task.result?.channel === "scratch_card") {
+      touchWorkActivity("ag_status");
+      const page = await prepareWorkerCardStatusPage(worker);
+      const scratchLookupType =
+        lookupType === "certificate" ? "certificate" : "policy_number";
 
-    await searchAGPolicyStatus(page, task.input.lookupValue, scratchLookupType);
+      await searchAGPolicyStatus(page, task.input.lookupValue, scratchLookupType);
+      addStep(
+        task,
+        createStep(
+          `Search scratch-card status by ${scratchLookupType}: ${task.input.lookupValue}`,
+          "success",
+        ),
+      );
+
+      await trackAGPolicyStatusDetails(page, task.input.lookupValue);
+      addStep(task, createStep("Track details opened", "success"));
+
+      const detailRows = await extractAGPolicyStatusDetails(page);
+      task.result = {
+        ...(task.result || {
+          lookupValue: task.input.lookupValue,
+          lookupType: scratchLookupType,
+          channel: "scratch_card",
+          summaryRows: [],
+          trailRows: [],
+        }),
+        detailRows,
+      };
+      addStep(task, createStep("Scratch-card details extracted", "success"));
+
+      saveTaskLog(task.id, task);
+      emitEvent("polstatus:awaiting_action", {
+        taskId: task.id,
+        lookupValue: task.input.lookupValue,
+        lookupType: scratchLookupType,
+        result: task.result,
+      });
+      return true;
+    }
+
+    touchWorkActivity("epin");
+    const page = await prepareWorkerEPINStatusPage(worker);
+    const epinLookupType =
+      lookupType === "registration" ? "registration" : "policy_number";
+
+    await searchEPINPolicyStatus(page, task.input.lookupValue, epinLookupType);
     addStep(
       task,
       createStep(
-        `Search scratch-card status by ${scratchLookupType}: ${task.input.lookupValue}`,
+        `Search policy status by ${lookupType}: ${task.input.lookupValue}`,
         "success",
       ),
     );
 
-    await trackAGPolicyStatusDetails(page, task.input.lookupValue);
+    await trackEPINPolicyStatusDetails(page, task.input.lookupValue);
     addStep(task, createStep("Track details opened", "success"));
 
-    const detailRows = await extractAGPolicyStatusDetails(page);
+    const { detailRows, trailRows } = await extractEPINPolicyStatusDetails(page);
     task.result = {
       ...(task.result || {
         lookupValue: task.input.lookupValue,
-        lookupType: scratchLookupType,
-        channel: "scratch_card",
+        lookupType: epinLookupType,
+        channel: "epin",
         summaryRows: [],
         trailRows: [],
       }),
       detailRows,
+      trailRows: trailRows.length > 0 ? trailRows : task.result?.trailRows || [],
     };
-    addStep(task, createStep("Scratch-card details extracted", "success"));
+    addStep(task, createStep("E-PIN details extracted", "success"));
 
     saveTaskLog(task.id, task);
     emitEvent("polstatus:awaiting_action", {
       taskId: task.id,
       lookupValue: task.input.lookupValue,
-      lookupType: scratchLookupType,
+      lookupType: epinLookupType,
       result: task.result,
     });
     return true;

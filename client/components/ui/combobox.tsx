@@ -24,6 +24,7 @@ interface ComboboxProps {
   onChange: (value: string) => void;
   placeholder?: string;
   searchPlaceholder?: string;
+  clearLabel?: string;
   disabled?: boolean;
   className?: string;
 }
@@ -34,6 +35,7 @@ export function Combobox({
   onChange,
   placeholder = "Select...",
   searchPlaceholder = "Search...",
+  clearLabel,
   disabled = false,
   className,
 }: ComboboxProps) {
@@ -63,12 +65,29 @@ export function Combobox({
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
+              {clearLabel ? (
+                <CommandItem
+                  value="__clear__"
+                  onSelect={() => {
+                    onChange("");
+                    setOpen(false);
+                  }}
+                >
+                  <CheckIcon
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === "" ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  {clearLabel}
+                </CommandItem>
+              ) : null}
               {options.map((option) => (
                 <CommandItem
                   key={option}
                   value={option}
-                  onSelect={(currentValue) => {
-                    onChange(currentValue === value ? "" : currentValue);
+                  onSelect={() => {
+                    onChange(option === value ? "" : option);
                     setOpen(false);
                   }}
                 >

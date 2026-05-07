@@ -344,6 +344,21 @@ Automated agent progress is persisted in `storage/automated-agent-state.json`. P
 
 ## Changelog
 
+### v2.3.1 - Timeout, History, Tracking, and Validation Refinements
+
+#### New Features
+
+- Shared network timeout setting for AG, E-PIN, NIID, and NIIP with simple minute-based options in Settings
+- Full paginated history pages for corrections, Policy Status, and Policy Push with policy-number search
+- E-PIN Policy Status Track Details flow for full transaction record and audit trail review
+
+#### Improvements
+
+- Swap phone validation now enforces leading `0` and exactly 11 digits for better data quality
+- Swap vehicle color is now truly optional and can be cleared when no color change is needed
+- `/history` rendering was stabilized with the required Suspense boundary and a direct back action
+- Vehicle model entry now supports manual input even when model lists are available, while still resolving against platform options
+
 ### v2.3.0 - E-PIN, NIIP, Swap, and Policy Status Expansion
 
 #### New Features

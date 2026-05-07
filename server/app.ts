@@ -59,10 +59,36 @@ import {
   getCleanableLogCount,
 } from "./jobs/logCleanup";
 import { isEpinPolicyNumber } from "./utils/policyClassifier";
+import { paginateItems } from "./utils/pagination";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+function isValidSwapPhoneNumber(value: unknown): boolean {
+  return typeof value === "string" && /^0\d{10}$/.test(value.trim());
+}
+
+function normalizeSearchQuery(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function parsePageParam(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sortByCreatedAtDesc<T extends { createdAt?: string }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) =>
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+  );
+}
+
+function matchesPolicySearch(value: unknown, search: string): boolean {
+  if (!search) return true;
+  return typeof value === "string" && value.toLowerCase().includes(search);
+}
 
 // Serve dashboard
 app.use(express.static(config.dashboardPath));
@@ -153,11 +179,12 @@ app.post("/api/corrections/run", async (req, res) => {
         }
         break;
       case "swap": {
+        const phone = (input as any).phone;
         const swapFields = [
           (input as any).firstName,
           (input as any).lastName,
           (input as any).email,
-          (input as any).phone,
+          phone,
           (input as any).engineNumber,
           (input as any).newChassisNumber,
           (input as any).newRegistrationNumber,
@@ -176,6 +203,13 @@ app.post("/api/corrections/run", async (req, res) => {
           return res.status(400).json({
             success: false,
             error: "Provide at least one swap field to update",
+          });
+        }
+
+        if (typeof phone === "string" && phone.trim().length > 0 && !isValidSwapPhoneNumber(phone)) {
+          return res.status(400).json({
+            success: false,
+            error: "Phone number must start with 0 and be exactly 11 digits",
           });
         }
         break;
@@ -222,14 +256,23 @@ app.post("/api/corrections/:taskId/cancel", (req, res) => {
 
 // Get correction history
 app.get("/api/corrections/logs", (req, res) => {
+  const page = parsePageParam(req.query.page, 1);
+  const pageSize = parsePageParam(req.query.pageSize, 20);
+  const search = normalizeSearchQuery(req.query.search);
   const history = getTaskHistory();
   const fileLogs = loadTaskLogs().filter((t) => t.correction); // Only correction logs
 
   // Merge in-memory and file-based logs (deduplicate by id)
   const seen = new Set(history.map((t) => t.id));
-  const merged = [...history, ...fileLogs.filter((t) => !seen.has(t.id))];
+  const merged = sortByCreatedAtDesc([
+    ...history,
+    ...fileLogs.filter((t) => !seen.has(t.id)),
+  ]);
+  const filtered = merged.filter((item) =>
+    matchesPolicySearch(item.correction?.policyNumber, search),
+  );
 
-  res.json({ success: true, data: merged });
+  res.json({ success: true, data: paginateItems(filtered, page, pageSize) });
 });
 
 // Login to A&G (auto — sets up both correction and push pages)
@@ -413,6 +456,9 @@ app.post("/api/policy-push/:taskId/cancel", (req, res) => {
 
 // Get policy push history
 app.get("/api/policy-push/logs", (req, res) => {
+  const page = parsePageParam(req.query.page, 1);
+  const pageSize = parsePageParam(req.query.pageSize, 20);
+  const search = normalizeSearchQuery(req.query.search);
   const running = getRunningPushTasks();
   const history = getPushTaskHistory();
   const fileLogs = loadTaskLogs().filter(
@@ -434,7 +480,14 @@ app.get("/api/policy-push/logs", (req, res) => {
     }
   }
 
-  res.json({ success: true, data: merged });
+  const filtered = sortByCreatedAtDesc(merged).filter((item) =>
+    matchesPolicySearch(
+      item.input?.method === "policy_number" ? item.input?.policyNumber : "",
+      search,
+    ),
+  );
+
+  res.json({ success: true, data: paginateItems(filtered, page, pageSize) });
 });
 
 app.post("/api/pol-status/start", (req, res) => {
@@ -516,6 +569,9 @@ app.post("/api/pol-status/:taskId/track", async (req, res) => {
 });
 
 app.get("/api/pol-status/logs", (req, res) => {
+  const page = parsePageParam(req.query.page, 1);
+  const pageSize = parsePageParam(req.query.pageSize, 20);
+  const search = normalizeSearchQuery(req.query.search);
   const history = getPolicyStatusHistory();
   const fileLogs = loadTaskLogs().filter(
     (t) =>
@@ -525,8 +581,17 @@ app.get("/api/pol-status/logs", (req, res) => {
       !t.correction,
   );
   const seen = new Set(history.map((t) => t.id));
-  const merged = [...history, ...fileLogs.filter((t) => !seen.has(t.id))];
-  res.json({ success: true, data: merged });
+  const merged = sortByCreatedAtDesc([
+    ...history,
+    ...fileLogs.filter((t) => !seen.has(t.id)),
+  ]);
+  const filtered = merged.filter((item) =>
+    matchesPolicySearch(
+      item.result?.lookupValue || item.input?.lookupValue,
+      search,
+    ),
+  );
+  res.json({ success: true, data: paginateItems(filtered, page, pageSize) });
 });
 
 // Stop heartbeats, kill all browser sessions, close all browsers, and delete saved sessions

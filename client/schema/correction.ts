@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+const optionalTrimmedString = z.string().trim().optional();
+
+const optionalSwapPhoneSchema = z
+  .string()
+  .trim()
+  .refine((value) => value.length === 0 || /^0\d{10}$/.test(value), {
+    message: "Phone number must start with 0 and be exactly 11 digits",
+  })
+  .optional();
+
 const baseSchema = z.object({
   policyNumber: z.string().trim().min(1, "Policy number is required"),
 });
@@ -39,18 +49,18 @@ export const correctionSchema = z.discriminatedUnion("type", [
   }),
   baseSchema.extend({
     type: z.literal("swap"),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-    email: z.string().optional(),
-    phone: z.string().optional(),
-    engineNumber: z.string().optional(),
-    newChassisNumber: z.string().optional(),
-    newRegistrationNumber: z.string().optional(),
-    vehicleColor: z.string().optional(),
-    newVehicleMake: z.string().optional(),
-    newVehicleModel: z.string().optional(),
-    vehicleYear: z.string().optional(),
-    address: z.string().optional(),
+    firstName: optionalTrimmedString,
+    lastName: optionalTrimmedString,
+    email: optionalTrimmedString,
+    phone: optionalSwapPhoneSchema,
+    engineNumber: optionalTrimmedString,
+    newChassisNumber: optionalTrimmedString,
+    newRegistrationNumber: optionalTrimmedString,
+    vehicleColor: optionalTrimmedString,
+    newVehicleMake: optionalTrimmedString,
+    newVehicleModel: optionalTrimmedString,
+    vehicleYear: optionalTrimmedString,
+    address: optionalTrimmedString,
   }).superRefine((value, ctx) => {
     const fields = [
       value.firstName,
