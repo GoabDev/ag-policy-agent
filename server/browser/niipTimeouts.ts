@@ -1,3 +1,13 @@
-export const NIIP_LOGIN_TIMEOUT_MS = 30000;
-export const NIIP_NAVIGATION_TIMEOUT_MS = 45000;
-export const NIIP_SUCCESS_TIMEOUT_MS = 45000;
+import { getNetworkTimeoutMs } from "./timeoutSettings";
+
+export function getNIIPLoginTimeoutMs(): number {
+  return getNetworkTimeoutMs();
+}
+
+export function getNIIPNavigationTimeoutMs(): number {
+  return getNetworkTimeoutMs();
+}
+
+export function getNIIPSuccessTimeoutMs(): number {
+  return getNetworkTimeoutMs();
+}

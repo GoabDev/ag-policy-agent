@@ -115,6 +115,11 @@ export const config: Config = Object.seal({
     parseInt(getEnv("KEEPALIVE_INTERVAL", "5"), 10) * 60 * 1000,
   niidKeepAliveInterval:
     parseInt(getEnv("NIID_KEEPALIVE_INTERVAL", "2"), 10) * 60 * 1000,
+  networkTimeoutMs:
+    parseInt(
+      getEnv("NETWORK_TIMEOUT_MINUTES", "2"),
+      10,
+    ) * 60 * 1000,
 
   // Auto-kill sessions after inactivity (hours → ms, default: 5 hours)
   sessionInactivityTimeout:

@@ -362,6 +362,7 @@ Automated agent progress is persisted in `storage/automated-agent-state.json`. P
 - E-PIN correction flows aligned more closely with the A&G loading and confirmation patterns
 - Swap history rendering summarized in the table and expanded in detail dialogs
 - Scratch-card Policy Status now reuses the authenticated A&G session, and E-PIN Policy Status reuses the E-PIN session
+- Shared network timeout setting added for AG, E-PIN, NIID, and NIIP with simple 1, 2, 5, 10, and 15 minute options in Settings
 
 ### v2.2.0 - Automated Policy Push Agents
 

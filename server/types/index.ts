@@ -349,6 +349,7 @@ export interface UserSettings {
   headless: boolean;
   logRetentionDays: number;
   autoStartSessions: boolean;
+  networkTimeoutMinutes: number;
   sessionTimeoutHours: number;
   maxWorkers: number;
   agKeepAliveMinutes: number;
@@ -402,6 +403,7 @@ export interface Config {
   port: number;
   keepAliveInterval: number;
   niidKeepAliveInterval: number;
+  networkTimeoutMs: number;
   sessionInactivityTimeout: number;
   maxWorkers: number;
   headless: boolean;

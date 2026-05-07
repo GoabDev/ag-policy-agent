@@ -6,6 +6,10 @@ import { destroyAllWorkers } from "./browser/workerPool";
 import { stopAllHeartbeats, startAllHeartbeats } from "./browser/keepAlive";
 import { log } from "./utils/logger";
 import { UserSettings } from "./types";
+import {
+  DEFAULT_NETWORK_TIMEOUT_MINUTES,
+  NETWORK_TIMEOUT_OPTIONS_MINUTES,
+} from "./browser/timeoutSettings";
 
 const SETTINGS_FILE = path.join(config.storagePath, "settings.json");
 
@@ -13,6 +17,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   headless: true,
   logRetentionDays: 30,
   autoStartSessions: false,
+  networkTimeoutMinutes: DEFAULT_NETWORK_TIMEOUT_MINUTES,
   sessionTimeoutHours: 5,
   maxWorkers: 5,
   agKeepAliveMinutes: 5,
@@ -27,7 +32,7 @@ export function loadSettings(): UserSettings {
     if (fs.existsSync(SETTINGS_FILE)) {
       const raw = fs.readFileSync(SETTINGS_FILE, "utf-8");
       const saved = JSON.parse(raw);
-      currentSettings = { ...DEFAULT_SETTINGS, ...saved };
+      currentSettings = normalizeSettings({ ...DEFAULT_SETTINGS, ...saved });
     }
   } catch {
     currentSettings = { ...DEFAULT_SETTINGS };
@@ -42,7 +47,7 @@ export function getSettings(): UserSettings {
 
 export function saveSettings(partial: Partial<UserSettings>): UserSettings {
   const oldHeadless = currentSettings.headless;
-  currentSettings = { ...currentSettings, ...partial };
+  currentSettings = normalizeSettings({ ...currentSettings, ...partial });
 
   // Ensure storage dir exists
   const dir = path.dirname(SETTINGS_FILE);
@@ -72,9 +77,23 @@ export function saveSettings(partial: Partial<UserSettings>): UserSettings {
 function applyToConfig(): void {
   config.headless = currentSettings.headless;
   config.maxWorkers = currentSettings.maxWorkers;
+  config.networkTimeoutMs = currentSettings.networkTimeoutMinutes * 60 * 1000;
   config.sessionInactivityTimeout =
     currentSettings.sessionTimeoutHours * 60 * 60 * 1000;
   config.keepAliveInterval = currentSettings.agKeepAliveMinutes * 60 * 1000;
   config.niidKeepAliveInterval =
     currentSettings.niidKeepAliveMinutes * 60 * 1000;
+}
+
+function normalizeSettings(settings: UserSettings): UserSettings {
+  const networkTimeoutMinutes = NETWORK_TIMEOUT_OPTIONS_MINUTES.some(
+    (value) => value === settings.networkTimeoutMinutes,
+  )
+    ? settings.networkTimeoutMinutes
+    : DEFAULT_NETWORK_TIMEOUT_MINUTES;
+
+  return {
+    ...settings,
+    networkTimeoutMinutes,
+  };
 }

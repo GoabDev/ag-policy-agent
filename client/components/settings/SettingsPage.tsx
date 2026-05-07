@@ -31,7 +31,6 @@ import {
   Monitor,
   Trash2,
   Clock,
-  Users,
   Heart,
   Bell,
   Save,
@@ -45,6 +44,7 @@ interface Settings {
   headless: boolean;
   logRetentionDays: number;
   autoStartSessions: boolean;
+  networkTimeoutMinutes: number;
   sessionTimeoutHours: number;
   maxWorkers: number;
   agKeepAliveMinutes: number;
@@ -56,6 +56,7 @@ const DEFAULTS: Settings = {
   headless: true,
   logRetentionDays: 30,
   autoStartSessions: false,
+  networkTimeoutMinutes: 2,
   sessionTimeoutHours: 5,
   maxWorkers: 5,
   agKeepAliveMinutes: 5,
@@ -151,6 +152,44 @@ export default function SettingsPage() {
                   checked={!form.headless}
                   onCheckedChange={(checked) => update({ headless: !checked })}
                 />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">
+                    Shared network timeout
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    One timeout for AG, E-PIN, NIID, and NIIP. Increase it if
+                    your network is slow. The app converts this to milliseconds
+                    behind the scenes.
+                  </p>
+                </div>
+                <Select
+                  value={String(form.networkTimeoutMinutes)}
+                  onValueChange={(v) =>
+                    update({ networkTimeoutMinutes: parseInt(v) })
+                  }
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 minute</SelectItem>
+                    <SelectItem value="2">2 minutes</SelectItem>
+                    <SelectItem value="5">5 minutes</SelectItem>
+                    <SelectItem value="10">10 minutes</SelectItem>
+                    <SelectItem value="15">15 minutes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-blue-700 dark:text-blue-200">
+                <Info className="w-4 h-4 shrink-0" />
+                <p className="text-xs">
+                  Use a shorter timeout for faster failure feedback, or a longer
+                  timeout when the portals are loading slowly.
+                </p>
               </div>
 
               <div className="flex items-center justify-between">

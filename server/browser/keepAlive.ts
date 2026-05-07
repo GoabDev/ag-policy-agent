@@ -14,14 +14,12 @@ import { loginToNIIP } from "./actions/niip";
 import { openLoginPopup } from "./manualLogin";
 import { log, emitEvent } from "../utils/logger";
 import { SiteName } from "../types";
+import { getNetworkTimeoutMs } from "./timeoutSettings";
 
 let heartbeatTimers: Map<SiteName, NodeJS.Timeout> = new Map();
 const heartbeatInFlight: Map<SiteName, Promise<void>> = new Map();
 const heartbeatFailureCounts: Map<SiteName, number> = new Map();
 const MAX_HEARTBEAT_FAILURES = 3;
-
-// Kill sessions after this many ms of inactivity (default: 5 hours)
-const SESSION_INACTIVITY_TIMEOUT = config.sessionInactivityTimeout;
 
 // Pages we stay parked on - where the automation work happens
 const PARK_PAGES: Record<SiteName, string> = {
@@ -64,14 +62,14 @@ async function handleExpiredSession(site: SiteName, page: Page) {
 
     await page.goto(PARK_PAGES[site], {
       waitUntil: "domcontentloaded",
-      timeout: 30000,
+      timeout: getNetworkTimeoutMs(),
     });
 
     if (!isAutomatedPush) {
       const agPushPage = await getPage("ag_push");
       await agPushPage.goto(PARK_PAGES["ag_push"], {
         waitUntil: "domcontentloaded",
-        timeout: 30000,
+        timeout: getNetworkTimeoutMs(),
       });
     }
 
@@ -85,7 +83,7 @@ async function handleExpiredSession(site: SiteName, page: Page) {
     await loginToEPIN();
     await page.goto(PARK_PAGES[site], {
       waitUntil: "domcontentloaded",
-      timeout: 30000,
+      timeout: getNetworkTimeoutMs(),
     });
     await saveSession(site);
     touchSession(site);
@@ -97,7 +95,7 @@ async function handleExpiredSession(site: SiteName, page: Page) {
     await loginToNIIP();
     await page.goto(PARK_PAGES[site], {
       waitUntil: "domcontentloaded",
-      timeout: 30000,
+      timeout: getNetworkTimeoutMs(),
     });
     await saveSession(site);
     touchSession(site);
@@ -155,7 +153,7 @@ async function sendHeartbeatForPage(site: SiteName) {
     );
     await page.goto(targetUrl, {
       waitUntil: "domcontentloaded",
-      timeout: 30000,
+      timeout: getNetworkTimeoutMs(),
     });
 
     const landedUrl = page.url();
@@ -194,7 +192,7 @@ async function sendHeartbeat(site: SiteName) {
   const lastWork = getLastWorkActivity(site) || status.lastActivity;
   if (lastWork) {
     const idleMs = Date.now() - new Date(lastWork).getTime();
-    if (idleMs > SESSION_INACTIVITY_TIMEOUT) {
+    if (idleMs > config.sessionInactivityTimeout) {
       const idleHours = (idleMs / 3600000).toFixed(1);
       log(
         `Session ${site.toUpperCase()} idle for ${idleHours}h - auto-killing to avoid unnecessary traffic`,

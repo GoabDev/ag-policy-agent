@@ -22,7 +22,7 @@ import { acquireWorker, releaseWorker } from '../browser/workerPool';
 import { touchSession, touchWorkActivity } from '../browser/controller';
 import { config } from '../config';
 import { getPolicyChannel } from '../utils/policyClassifier';
-import { NIIP_NAVIGATION_TIMEOUT_MS } from '../browser/niipTimeouts';
+import { getNetworkTimeoutMs, getQuickCheckTimeoutMs } from '../browser/timeoutSettings';
 
 // Running tasks (supports multiple concurrent tasks)
 const runningTasks: Map<string, Task> = new Map();
@@ -78,7 +78,7 @@ async function prepareWorkerAGPage(worker: Worker): Promise<Page> {
     await page.fill('internal:role=textbox[name="Username"i]', config.ag.username);
     await page.fill('internal:role=textbox[name="Password"i]', config.ag.password);
     await page.click('internal:role=button[name="Logon"i]');
-    await page.waitForSelector('internal:text="Dashboard"', { timeout: 30000 });
+    await page.waitForSelector('internal:text="Dashboard"', { timeout: getNetworkTimeoutMs() });
     // Navigate to Update Policy
     await page.click('internal:role=link[name=" Policy Operations "i]');
     await page.click('internal:role=link[name="Update Policy"i]');
@@ -96,12 +96,12 @@ async function prepareWorkerAGPage(worker: Worker): Promise<Page> {
 
   // Check if already logged in
   try {
-    await page.waitForSelector('internal:text="Dashboard"', { timeout: 5000 });
+    await page.waitForSelector('internal:text="Dashboard"', { timeout: getQuickCheckTimeoutMs() });
   } catch {
     await page.fill('internal:role=textbox[name="Username"i]', config.ag.username);
     await page.fill('internal:role=textbox[name="Password"i]', config.ag.password);
     await page.click('internal:role=button[name="Logon"i]');
-    await page.waitForSelector('internal:text="Dashboard"', { timeout: 30000 });
+    await page.waitForSelector('internal:text="Dashboard"', { timeout: getNetworkTimeoutMs() });
   }
 
   await page.click('internal:role=link[name=" Policy Operations "i]');
@@ -123,7 +123,7 @@ async function prepareWorkerNIIDPage(worker: Worker): Promise<Page> {
   }
 
   // Navigate to park page
-  await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: getNetworkTimeoutMs() });
 
   const landedUrl = page.url();
   if (landedUrl.includes('/default.aspx')) {
@@ -144,7 +144,7 @@ async function prepareWorkerEPINPage(worker: Worker): Promise<Page> {
     await page.fill('input[name="Username"]', config.epin.username);
     await page.fill('input[name="Password"]', config.epin.password);
     await page.click('button[type="submit"]');
-    await page.goto(config.epin.parkUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.goto(config.epin.parkUrl, { waitUntil: 'domcontentloaded', timeout: getNetworkTimeoutMs() });
     return page;
   }
 
@@ -153,7 +153,7 @@ async function prepareWorkerEPINPage(worker: Worker): Promise<Page> {
     return page;
   }
 
-  await page.goto(config.epin.parkUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.goto(config.epin.parkUrl, { waitUntil: 'domcontentloaded', timeout: getNetworkTimeoutMs() });
   touchSession('epin');
   return page;
 }
@@ -168,7 +168,7 @@ async function prepareWorkerNIIPPage(worker: Worker): Promise<Page> {
     await page.fill('input[name="Username"]', config.niip.username);
     await page.fill('input[name="Password"]', config.niip.password);
     await page.click('button[type="submit"]');
-    await page.goto(config.niip.parkUrl, { waitUntil: 'domcontentloaded', timeout: NIIP_NAVIGATION_TIMEOUT_MS });
+    await page.goto(config.niip.parkUrl, { waitUntil: 'domcontentloaded', timeout: getNetworkTimeoutMs() });
     return page;
   }
 
@@ -177,7 +177,7 @@ async function prepareWorkerNIIPPage(worker: Worker): Promise<Page> {
     return page;
   }
 
-  await page.goto(config.niip.parkUrl, { waitUntil: 'domcontentloaded', timeout: NIIP_NAVIGATION_TIMEOUT_MS });
+  await page.goto(config.niip.parkUrl, { waitUntil: 'domcontentloaded', timeout: getNetworkTimeoutMs() });
   touchSession('niip');
   return page;
 }

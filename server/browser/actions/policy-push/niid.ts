@@ -3,6 +3,7 @@ import { config } from "../../../config";
 import { getPage, touchSession } from "../../controller";
 import { log, emitEvent } from "../../../utils/logger";
 import { SiteName } from "../../../types";
+import { getNetworkTimeoutMs } from "../../timeoutSettings";
 
 // ============================================
 // SELECTORS — NIID Upload Policy page
@@ -40,7 +41,7 @@ export async function checkNIIDPushSession(
     const page = await getPage(site);
     await page.goto(config.niidPush.uploadUrl, {
       waitUntil: "domcontentloaded",
-      timeout: 30000,
+      timeout: getNetworkTimeoutMs(),
     });
 
     const currentUrl = page.url();
@@ -83,7 +84,7 @@ export async function getNIIDUploadPage(
   // Navigate to upload page
   await page.goto(config.niidPush.uploadUrl, {
     waitUntil: "domcontentloaded",
-    timeout: 30000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Check if we got redirected to login
@@ -128,7 +129,7 @@ export async function uploadPolicyFile(
   // It appears after file selection and shows upload progress — we must wait
   // for it to reach 100% or disappear before clicking Upload.
   const progressArea = await page
-    .waitForSelector(UPLOAD_SELECTORS.fileProgressArea, { timeout: 10000, state: "visible" })
+    .waitForSelector(UPLOAD_SELECTORS.fileProgressArea, { timeout: getNetworkTimeoutMs(), state: "visible" })
     .catch(() => null);
 
   if (progressArea) {
@@ -158,7 +159,7 @@ export async function uploadPolicyFile(
         log("File read reached 100%, waiting for progress area to close...");
         // Wait a moment for the progress area to auto-close
         await page
-          .waitForSelector(UPLOAD_SELECTORS.fileProgressArea, { state: "hidden", timeout: 10000 })
+          .waitForSelector(UPLOAD_SELECTORS.fileProgressArea, { state: "hidden", timeout: getNetworkTimeoutMs() })
           .catch(() => null);
         break;
       }
@@ -178,7 +179,7 @@ export async function uploadPolicyFile(
 
   // Step 5: Wait for loading indicator to appear (upload started)
   const loadingEl = await page
-    .waitForSelector(UPLOAD_SELECTORS.loadingText, { timeout: 30000 })
+    .waitForSelector(UPLOAD_SELECTORS.loadingText, { timeout: getNetworkTimeoutMs() })
     .catch(() => null);
 
   if (loadingEl) {
@@ -190,7 +191,7 @@ export async function uploadPolicyFile(
 
     // Step 6: Poll while loading is visible, emitting periodic progress events
     // NIID can take a very long time — up to 5 minutes
-    const MAX_UPLOAD_WAIT = 5 * 60 * 1000; // 5 minutes
+    const MAX_UPLOAD_WAIT = getNetworkTimeoutMs();
     const POLL_INTERVAL = 10_000; // 10 seconds
     const startTime = Date.now();
     let elapsed = 0;
@@ -226,7 +227,7 @@ export async function uploadPolicyFile(
 
   // Step 7: Read the result panel content
   const resultEl = await page
-    .waitForSelector(UPLOAD_SELECTORS.resultMessage, { timeout: 15000 })
+    .waitForSelector(UPLOAD_SELECTORS.resultMessage, { timeout: getNetworkTimeoutMs() })
     .catch(() => null);
 
   if (!resultEl) {

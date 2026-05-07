@@ -4,7 +4,7 @@ import { config } from "../config";
 import { createWorkerContext } from "./controller";
 import { log } from "../utils/logger";
 import { SiteName, Worker, WorkerPoolStatus } from "../types";
-import { NIIP_NAVIGATION_TIMEOUT_MS } from "./niipTimeouts";
+import { getNetworkTimeoutMs } from "./timeoutSettings";
 
 // Park pages — where workers navigate after release
 const PARK_PAGES: Record<SiteName, string> = {
@@ -20,7 +20,7 @@ const PARK_PAGES: Record<SiteName, string> = {
 };
 
 function getParkPageTimeout(site: SiteName): number {
-  return site === "niip" ? NIIP_NAVIGATION_TIMEOUT_MS : 30000;
+  return getNetworkTimeoutMs();
 }
 
 // Pool state
@@ -139,7 +139,7 @@ export async function releaseWorker(workerId: string) {
       try {
         await page.goto(PARK_PAGES[site], {
           waitUntil: "domcontentloaded",
-          timeout: site === "niip" ? NIIP_NAVIGATION_TIMEOUT_MS : 15000,
+          timeout: getNetworkTimeoutMs(),
         });
       } catch {
         // Page may have issues, will be replaced on next acquire

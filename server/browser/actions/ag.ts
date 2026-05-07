@@ -5,6 +5,7 @@ import { config } from "../../config";
 import { getPage, saveSession, touchSession } from "../controller";
 import { log } from "../../utils/logger";
 import { PolicyStatusResult, PolicyStatusSummaryRow } from "../../types";
+import { getNetworkTimeoutMs, getQuickCheckTimeoutMs } from "../timeoutSettings";
 
 // ============================================
 // SELECTORS — Update these after mapping the real site
@@ -87,7 +88,7 @@ export async function loginToAG(
   // Check if already logged in
   try {
     await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
-      timeout: 5000,
+      timeout: getQuickCheckTimeoutMs(),
     });
     log(
       isAutomatedPush
@@ -103,7 +104,7 @@ export async function loginToAG(
 
     // Wait for dashboard to load
     await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
-      timeout: 30000,
+      timeout: getNetworkTimeoutMs(),
     });
   }
 
@@ -111,7 +112,7 @@ export async function loginToAG(
     try {
       await page.goto(config.ag.spoolUrl, {
         waitUntil: "domcontentloaded",
-        timeout: 30000,
+        timeout: getNetworkTimeoutMs(),
       });
       log("A&G Automated Push page navigated to spool page");
     } catch (err: any) {
@@ -126,7 +127,7 @@ export async function loginToAG(
     try {
       await agPushPage.goto(config.ag.spoolUrl, {
         waitUntil: "domcontentloaded",
-        timeout: 30000,
+        timeout: getNetworkTimeoutMs(),
       });
       log("AG Push page navigated to spool page");
     } catch (err: any) {
@@ -161,10 +162,10 @@ export async function navigateToPolicy(page: Page): Promise<void> {
 export async function openAGPolicyStatusPage(page: Page): Promise<void> {
   await page.goto(config.ag.policyStatusUrl, {
     waitUntil: "domcontentloaded",
-    timeout: 30000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page
-    .waitForLoadState("networkidle", { timeout: 10000 })
+    .waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() })
     .catch(() => undefined);
 }
 
@@ -184,17 +185,17 @@ export async function searchAGPolicyStatus(
       ? page.locator(SELECTORS.statusPage.certificateSearchButton).first()
       : page.locator(SELECTORS.statusPage.policySearchButton).first();
 
-  await input.waitFor({ state: "visible", timeout: 15000 });
+  await input.waitFor({ state: "visible", timeout: getNetworkTimeoutMs() });
   await input.fill("");
   await input.fill(lookupValue);
   await button.click();
 
   await page
-    .waitForLoadState("networkidle", { timeout: 15000 })
+    .waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() })
     .catch(() => undefined);
   await page
     .getByText("View Complete Details", { exact: false })
-    .waitFor({ state: "visible", timeout: 15000 })
+    .waitFor({ state: "visible", timeout: getNetworkTimeoutMs() })
     .catch(() => undefined);
 }
 
@@ -263,14 +264,14 @@ export async function trackAGPolicyStatusDetails(
   const trackButton = page
     .getByRole("link", { name: "Track", exact: true })
     .first();
-  await trackButton.waitFor({ state: "visible", timeout: 15000 });
+  await trackButton.waitFor({ state: "visible", timeout: getNetworkTimeoutMs() });
   await trackButton.click();
   await page
-    .waitForLoadState("networkidle", { timeout: 15000 })
+    .waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() })
     .catch(() => undefined);
   await page
     .getByText("Transaction Tracker", { exact: false })
-    .waitFor({ state: "visible", timeout: 15000 });
+    .waitFor({ state: "visible", timeout: getNetworkTimeoutMs() });
 }
 
 export async function extractAGPolicyStatusDetails(
@@ -334,7 +335,7 @@ export async function searchPolicy(
   // Check if error dialog appeared (gives it a few seconds to render after overlay clears)
   const errorDialog = await page
     .waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-      timeout: 3000,
+      timeout: getQuickCheckTimeoutMs(),
     })
     .catch(() => null);
 
@@ -390,7 +391,7 @@ export async function correctName(
 
   // Wait for confirmation panel
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm button
@@ -403,7 +404,7 @@ export async function correctName(
 
   // Wait for success confirmation
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm on the success dialog
@@ -430,7 +431,7 @@ export async function correctRegistration(
 
   // Wait for confirmation panel
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm button
@@ -443,7 +444,7 @@ export async function correctRegistration(
 
   // Wait for success confirmation (This might appear as another confirmation panel)
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm on the success dialog
@@ -483,7 +484,7 @@ export async function correctVehicleMake(
 
   // Wait for confirmation panel
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm button
@@ -494,7 +495,7 @@ export async function correctVehicleMake(
 
   // Wait for success confirmation
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm on the success dialog
@@ -532,7 +533,7 @@ export async function correctRegandChasis(
 
   // Wait for confirmation panel
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm button
@@ -545,7 +546,7 @@ export async function correctRegandChasis(
 
   // Wait for success confirmation
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm on the success dialog
@@ -574,7 +575,7 @@ export async function correctChassis(
 
   // Wait for confirmation panel
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm button
@@ -587,7 +588,7 @@ export async function correctChassis(
 
   // Wait for success confirmation
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
 
   // Click confirm on the success dialog
@@ -655,7 +656,7 @@ async function waitForOverlayToDisappear(
         return (el as any).__overlayAppeared && style === "none";
       },
       SELECTORS.loadingOverlay,
-      { timeout: 30000, polling: 100 },
+      { timeout: getNetworkTimeoutMs(), polling: 100 },
     );
   } catch {
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);

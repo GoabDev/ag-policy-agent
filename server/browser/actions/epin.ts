@@ -9,6 +9,7 @@ import {
   SwapCorrectionInput,
 } from "../../types";
 import { normalizeVehicleColor } from "../../utils/vehicleOptions";
+import { getNetworkTimeoutMs, getQuickCheckTimeoutMs } from "../timeoutSettings";
 
 const SELECTORS = {
   login: {
@@ -68,7 +69,7 @@ export async function loginToEPIN(): Promise<Page> {
 
   try {
     await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
-      timeout: 5000,
+      timeout: getQuickCheckTimeoutMs(),
     });
     touchSession("epin");
   } catch {
@@ -76,13 +77,13 @@ export async function loginToEPIN(): Promise<Page> {
     await page.fill(SELECTORS.login.passwordField, config.epin.password);
     await page.click(SELECTORS.login.submitButton);
     await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
-      timeout: 30000,
+      timeout: getNetworkTimeoutMs(),
     });
   }
 
   await page.goto(config.epin.parkUrl, {
     waitUntil: "domcontentloaded",
-    timeout: 30000,
+    timeout: getNetworkTimeoutMs(),
   });
   await saveSession("epin");
   log("E-PIN login successful");
@@ -103,7 +104,7 @@ export async function searchEPINPolicy(
 
   const errorDialog = await page
     .waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-      timeout: 3000,
+      timeout: getQuickCheckTimeoutMs(),
     })
     .catch(() => null);
 
@@ -148,7 +149,7 @@ export async function correctEPINName(
   await page.click(SELECTORS.policy.saveButton);
 
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.confirmButton);
 
@@ -156,7 +157,7 @@ export async function correctEPINName(
   await waitForOverlayToDisappear(page, "correctEPINName");
 
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
@@ -178,7 +179,7 @@ export async function correctEPINRegistration(
   await page.click(SELECTORS.policy.saveButton);
 
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.confirmButton);
 
@@ -186,7 +187,7 @@ export async function correctEPINRegistration(
   await waitForOverlayToDisappear(page, "correctEPINRegistration");
 
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
@@ -213,14 +214,14 @@ export async function correctEPINVehicleMake(
   await page.click(SELECTORS.policy.saveButton);
 
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.confirmButton);
 
   await waitForOverlayToDisappear(page, "correctEPINVehicleMake");
 
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
@@ -250,7 +251,7 @@ export async function correctEPINRegAndChassis(
   await page.click(SELECTORS.policy.saveButton);
 
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.confirmButton);
 
@@ -258,7 +259,7 @@ export async function correctEPINRegAndChassis(
   await waitForOverlayToDisappear(page, "correctEPINRegAndChassis");
 
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
@@ -281,7 +282,7 @@ export async function correctEPINChassis(
   await page.click(SELECTORS.policy.saveButton);
 
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.confirmButton);
 
@@ -289,7 +290,7 @@ export async function correctEPINChassis(
   await waitForOverlayToDisappear(page, "correctEPINChassis");
 
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
@@ -415,13 +416,13 @@ export async function applyEPINSwap(
 
   await page.click(SELECTORS.policy.saveButton);
   await page.waitForSelector(SELECTORS.confirmationPanel.confirmationPanel, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.confirmButton);
   await page.waitForTimeout(1000);
   await waitForOverlayToDisappear(page, "applyEPINSwap");
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: 15000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page.click(SELECTORS.confirmationPanel.closeButton);
 
@@ -444,10 +445,10 @@ export async function getEPINPolicyPage(): Promise<Page> {
 export async function openEPINPolicyStatusPage(page: Page): Promise<void> {
   await page.goto(config.epin.policyStatusUrl, {
     waitUntil: "domcontentloaded",
-    timeout: 30000,
+    timeout: getNetworkTimeoutMs(),
   });
   await page
-    .waitForLoadState("networkidle", { timeout: 10000 })
+    .waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() })
     .catch(() => undefined);
 }
 
@@ -462,7 +463,7 @@ export async function searchEPINPolicyStatus(
     lookupType === "registration"
       ? page.locator(SELECTORS.statusPage.regNumberField).first()
       : page.locator(SELECTORS.statusPage.policyNumberField).first();
-  await searchField.waitFor({ state: "visible", timeout: 15000 });
+  await searchField.waitFor({ state: "visible", timeout: getNetworkTimeoutMs() });
   await searchField.fill("");
   await searchField.fill(lookupValue);
 
@@ -477,16 +478,16 @@ export async function searchEPINPolicyStatus(
   await searchButton.click();
 
   await page
-    .waitForLoadState("networkidle", { timeout: 15000 })
+    .waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() })
     .catch(() => undefined);
   await Promise.race([
     page
       .getByText("Trail Date", { exact: false })
-      .waitFor({ state: "visible", timeout: 15000 }),
+      .waitFor({ state: "visible", timeout: getNetworkTimeoutMs() }),
     page
       .getByText("Reset Push", { exact: false })
-      .waitFor({ state: "visible", timeout: 15000 }),
-    page.waitForSelector(SELECTORS.statusPage.resetMessage, { timeout: 15000 }),
+      .waitFor({ state: "visible", timeout: getNetworkTimeoutMs() }),
+    page.waitForSelector(SELECTORS.statusPage.resetMessage, { timeout: getNetworkTimeoutMs() }),
   ]).catch(() => undefined);
 }
 
@@ -594,20 +595,20 @@ export async function resetEPINPolicyStatusPush(
   );
   const resetButton = page.locator(resetButtonSelector).first();
 
-  await resetButton.waitFor({ state: "visible", timeout: 15000 });
+  await resetButton.waitFor({ state: "visible", timeout: getNetworkTimeoutMs() });
   await resetButton.click({ noWaitAfter: true });
 
   await waitForOverlayToDisappear(page, "resetEPINPolicyStatusPush");
   await page
-    .waitForSelector(SELECTORS.statusPage.resetMessage, { timeout: 20000 })
+    .waitForSelector(SELECTORS.statusPage.resetMessage, { timeout: getNetworkTimeoutMs() })
     .catch(async () => {
-      await page.waitForLoadState("networkidle", { timeout: 20000 });
+      await page.waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() });
       await page.waitForSelector(SELECTORS.statusPage.resetMessage, {
-        timeout: 10000,
+        timeout: getNetworkTimeoutMs(),
       });
     });
   await page
-    .waitForLoadState("networkidle", { timeout: 15000 })
+    .waitForLoadState("networkidle", { timeout: getNetworkTimeoutMs() })
     .catch(() => undefined);
 }
 
@@ -720,7 +721,7 @@ async function waitForOverlayToDisappear(
         return (el as any).__overlayAppeared && style === "none";
       },
       SELECTORS.loadingOverlay,
-      { timeout: 30000, polling: 100 },
+      { timeout: getNetworkTimeoutMs(), polling: 100 },
     );
   } catch {
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);

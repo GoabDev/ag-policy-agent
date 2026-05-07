@@ -2,6 +2,7 @@ import { Page } from 'playwright';
 import { getPage, saveSession, touchSession } from '../controller';
 import { log } from '../../utils/logger';
 import { config } from '../../config';
+import { getNetworkTimeoutMs, getQuickCheckTimeoutMs } from '../timeoutSettings';
 
 // ============================================
 // SELECTORS — Update these after mapping the real NIID site
@@ -44,11 +45,11 @@ const SELECTORS = {
 export async function checkNIIDSession(): Promise<boolean> {
   try {
     const page = await getPage('niid');
-    await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: getNetworkTimeoutMs() });
 
     // Check if we land on dashboard (session alive) or login page
     try {
-      await page.waitForSelector(SELECTORS.login.dashboardIndicator, { timeout: 5000 });
+      await page.waitForSelector(SELECTORS.login.dashboardIndicator, { timeout: getQuickCheckTimeoutMs() });
       log('NIID session is active ✅');
       touchSession('niid');
       return true;
@@ -100,7 +101,7 @@ export async function searchNIIDPolicy(
     }
 
     // Wait for form to load
-    await page.waitForSelector(SELECTORS.policy.regNumberField, { timeout: 15000 });
+    await page.waitForSelector(SELECTORS.policy.regNumberField, { timeout: getNetworkTimeoutMs() });
 
     log('NIID policy loaded');
   } finally {
@@ -152,7 +153,7 @@ export async function correctNIIDRegistration(
     // If successMessage is also in the DOM, wait for it. 
     // Otherwise, we rely on the dialog having been handled.
     try {
-      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: 5000 });
+      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: getNetworkTimeoutMs() });
       log('Success message detected in DOM ✅');
     } catch {
       if (dialogHandled) {
@@ -219,7 +220,7 @@ export async function correctNIIDRegAndChassis(
     await page.click(SELECTORS.policy.saveButton);
 
     try {
-      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: 5000 });
+      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: getNetworkTimeoutMs() });
       log('Success message detected in DOM ✅');
     } catch {
       if (dialogHandled) {
@@ -277,7 +278,7 @@ export async function correctNIIDChassis(
     await page.click(SELECTORS.policy.saveButton);
 
     try {
-      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: 5000 });
+      await page.waitForSelector(SELECTORS.policy.successMessage, { timeout: getNetworkTimeoutMs() });
       log('Success message detected in DOM ✅');
     } catch {
       if (dialogHandled) {
@@ -318,7 +319,7 @@ export async function getNIIDPolicyPage(): Promise<Page> {
 
   // Fallback: try navigating to the park page
   log('NIID not on Change Request page, navigating...');
-  await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.goto(config.niid.policyCorrectionUrl, { waitUntil: 'domcontentloaded', timeout: getNetworkTimeoutMs() });
 
   // Check if we got redirected to login
   const landedUrl = page.url();

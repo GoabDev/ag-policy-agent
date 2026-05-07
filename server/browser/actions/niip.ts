@@ -5,10 +5,11 @@ import { log } from "../../utils/logger";
 import { SwapCorrectionInput } from "../../types";
 import { normalizeVehicleColor } from "../../utils/vehicleOptions";
 import {
-  NIIP_LOGIN_TIMEOUT_MS,
-  NIIP_NAVIGATION_TIMEOUT_MS,
-  NIIP_SUCCESS_TIMEOUT_MS,
+  getNIIPLoginTimeoutMs,
+  getNIIPNavigationTimeoutMs,
+  getNIIPSuccessTimeoutMs,
 } from "../niipTimeouts";
+import { getQuickCheckTimeoutMs } from "../timeoutSettings";
 
 const SELECTORS = {
   login: {
@@ -47,7 +48,7 @@ export async function loginToNIIP(): Promise<Page> {
 
   try {
     await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
-      timeout: 5000,
+      timeout: getQuickCheckTimeoutMs(),
     });
     touchSession("niip");
   } catch {
@@ -55,13 +56,13 @@ export async function loginToNIIP(): Promise<Page> {
     await page.fill(SELECTORS.login.passwordField, config.niip.password);
     await page.click(SELECTORS.login.submitButton);
     await page.waitForSelector(SELECTORS.login.dashboardIndicator, {
-      timeout: NIIP_LOGIN_TIMEOUT_MS,
+      timeout: getNIIPLoginTimeoutMs(),
     });
   }
 
   await page.goto(config.niip.parkUrl, {
     waitUntil: "domcontentloaded",
-    timeout: NIIP_NAVIGATION_TIMEOUT_MS,
+    timeout: getNIIPNavigationTimeoutMs(),
   });
   await saveSession("niip");
   log("NIIP login successful");
@@ -344,7 +345,7 @@ async function waitForNIIPSearchTransition(
 ): Promise<void> {
   try {
     await page.waitForURL((url) => url.toString() !== startUrl, {
-      timeout: NIIP_NAVIGATION_TIMEOUT_MS,
+      timeout: getNIIPNavigationTimeoutMs(),
     });
   } catch {
     await waitForNIIPPageTransition(page);
@@ -353,10 +354,10 @@ async function waitForNIIPSearchTransition(
 
 async function waitForNIIPPageTransition(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded", {
-    timeout: NIIP_NAVIGATION_TIMEOUT_MS,
+    timeout: getNIIPNavigationTimeoutMs(),
   });
   await page
-    .waitForLoadState("load", { timeout: NIIP_NAVIGATION_TIMEOUT_MS })
+    .waitForLoadState("load", { timeout: getNIIPNavigationTimeoutMs() })
     .catch(() => undefined);
 }
 
@@ -367,14 +368,14 @@ async function submitNIIPEndorse(page: Page): Promise<void> {
 
   try {
     await page.waitForURL((url) => url.toString() !== startUrl, {
-      timeout: NIIP_NAVIGATION_TIMEOUT_MS,
+      timeout: getNIIPNavigationTimeoutMs(),
     });
   } catch {
     await page.waitForLoadState("domcontentloaded", {
-      timeout: NIIP_NAVIGATION_TIMEOUT_MS,
+      timeout: getNIIPNavigationTimeoutMs(),
     });
     await page.waitForLoadState("load", {
-      timeout: NIIP_NAVIGATION_TIMEOUT_MS,
+      timeout: getNIIPNavigationTimeoutMs(),
     }).catch(
       () => undefined,
     );
@@ -383,7 +384,7 @@ async function submitNIIPEndorse(page: Page): Promise<void> {
 
 async function waitForNIIPSuccess(page: Page): Promise<void> {
   await page.waitForSelector(SELECTORS.policy.successMessage, {
-    timeout: NIIP_SUCCESS_TIMEOUT_MS,
+    timeout: getNIIPSuccessTimeoutMs(),
   });
 }
 

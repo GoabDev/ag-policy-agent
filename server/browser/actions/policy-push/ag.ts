@@ -6,6 +6,7 @@ import { getPage, touchSession } from "../../controller";
 import { loginToAG } from "../ag";
 import { log } from "../../../utils/logger";
 import { SiteName } from "../../../types";
+import { getNetworkTimeoutMs } from "../../timeoutSettings";
 
 // ============================================
 // SELECTORS — A&G Spool / Unpushed Policies page
@@ -46,7 +47,7 @@ export async function navigateToSpoolPage(page: Page): Promise<void> {
   log("Navigating to A&G Spool Unpushed page...");
   await page.goto(config.ag.spoolUrl, {
     waitUntil: "domcontentloaded",
-    timeout: 30000,
+    timeout: getNetworkTimeoutMs(),
   });
   log("On A&G Spool Unpushed page");
 }
@@ -148,11 +149,11 @@ async function triggerSearchAndDownload(page: Page): Promise<string> {
 
   // Set up listeners before clicking so we don't miss events
   const downloadFromOriginal = page
-    .waitForEvent("download", { timeout: 90000 })
+    .waitForEvent("download", { timeout: getNetworkTimeoutMs() })
     .catch(() => null);
 
   const popupPromise = browserContext
-    .waitForEvent("page", { timeout: 90000 })
+    .waitForEvent("page", { timeout: getNetworkTimeoutMs() })
     .catch(() => null);
 
   // Click the spool button
@@ -175,11 +176,11 @@ async function triggerSearchAndDownload(page: Page): Promise<string> {
 
     // Listen for download on the popup page too
     const downloadFromPopup = popupPage
-      .waitForEvent("download", { timeout: 60000 })
+      .waitForEvent("download", { timeout: getNetworkTimeoutMs() })
       .catch(() => null);
 
     // Wait for popup to auto-close
-    await popupPage.waitForEvent("close", { timeout: 60000 }).catch(() => {});
+    await popupPage.waitForEvent("close", { timeout: getNetworkTimeoutMs() }).catch(() => {});
     log("Popup tab closed, waiting for download...");
 
     const download = (await downloadFromPopup) ?? (await downloadFromOriginal);
