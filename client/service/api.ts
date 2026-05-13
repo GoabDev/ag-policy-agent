@@ -11,7 +11,8 @@ export const getPolicyStatusLogs = (
 export const runCorrection = (data: any) => {
   const body: any = { 
     type: data.type, 
-    policyNumber: data.policyNumber 
+    policyNumber: data.policyNumber,
+    portalTarget: data.portalTarget || 'auto',
   };
 
   const assignIfPresent = (key: string, value: unknown) => {
@@ -21,6 +22,8 @@ export const runCorrection = (data: any) => {
       body[key] = trimmed;
     }
   };
+
+  assignIfPresent('previousRegistrationNumber', data.previousRegistrationNumber);
   
   if (data.type === 'name') {
     body.firstName = data.firstName;

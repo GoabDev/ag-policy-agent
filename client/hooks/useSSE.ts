@@ -150,6 +150,7 @@ export function useSSE() {
             }
             return next;
           });
+          queryClient.invalidateQueries({ queryKey: ['logs'] });
           addLog('check-circle-2', 'Task completed', time);
 
         } else if (ev.type === 'task:failed' && taskId) {
@@ -162,6 +163,7 @@ export function useSSE() {
             }
             return next;
           });
+          queryClient.invalidateQueries({ queryKey: ['logs'] });
           addLog('x-circle', `Task failed: ${ev.data?.error || ''}`, time);
 
         } else if (ev.type === 'task:cancelled' && taskId) {
@@ -174,6 +176,7 @@ export function useSSE() {
             }
             return next;
           });
+          queryClient.invalidateQueries({ queryKey: ['logs'] });
           addLog('x-circle', 'Task cancelled by user', time);
 
         } else if (ev.type === 'polstatus:started' && taskId) {
@@ -296,6 +299,7 @@ export function useSSE() {
             }
             return next;
           });
+          queryClient.invalidateQueries({ queryKey: ['push-logs'] });
           addLog('check-circle-2', 'Policy push completed', time);
 
         } else if (ev.type === 'push:failed' && taskId) {
@@ -308,6 +312,7 @@ export function useSSE() {
             }
             return next;
           });
+          queryClient.invalidateQueries({ queryKey: ['push-logs'] });
           addLog('x-circle', `Policy push failed: ${ev.data?.error || ''}`, time);
 
         } else if (ev.type === 'push:cancelled' && taskId) {
@@ -320,6 +325,7 @@ export function useSSE() {
             }
             return next;
           });
+          queryClient.invalidateQueries({ queryKey: ['push-logs'] });
           addLog('x-circle', 'Policy push cancelled by user', time);
 
         } else if (ev.type === 'session:login_required') {
@@ -369,6 +375,40 @@ export function useSSE() {
         return next.size !== prev.size ? next : prev;
       });
     }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Reconcile with backend state so missed terminal SSE events cannot leave
+  // phantom active task cards on the dashboard.
+  useEffect(() => {
+    const reconcileActiveTasks = async () => {
+      try {
+        const res = await fetch('/api/status');
+        const payload = await res.json();
+        const runningCorrections = payload?.data?.runningTasks || [];
+        const runningPushes = payload?.data?.runningPushTasks || [];
+        const runningIds = new Set(
+          [...runningCorrections, ...runningPushes].map((task: { id: string }) => task.id),
+        );
+
+        setTasks((prev) => {
+          let changed = false;
+          const next = new Map(prev);
+          for (const [id, task] of next) {
+            if (task.status === 'running' && !runningIds.has(id)) {
+              next.delete(id);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      } catch {
+        // SSE remains the primary source; reconciliation is best-effort.
+      }
+    };
+
+    void reconcileActiveTasks();
+    const interval = setInterval(reconcileActiveTasks, 10000);
     return () => clearInterval(interval);
   }, []);
 

@@ -12,6 +12,8 @@ const optionalSwapPhoneSchema = z
 
 const baseSchema = z.object({
   policyNumber: z.string().trim().min(1, "Policy number is required"),
+  portalTarget: z.enum(["auto", "primary", "secondary"]).default("auto"),
+  previousRegistrationNumber: optionalTrimmedString,
 });
 
 export const correctionSchema = z.discriminatedUnion("type", [

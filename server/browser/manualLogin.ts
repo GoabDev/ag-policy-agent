@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { SiteName } from "../types";
 import { markSessionActive } from "./controller";
+import { destroyWorkersForSites } from "./workerPool";
 
 const loginsInProgress: Set<SiteName> = new Set();
 const loginBrowsers: Map<SiteName, any> = new Map();
@@ -138,6 +139,7 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
 
     await context.storageState({ path: sessionPath });
     markSessionActive(site);
+    await destroyWorkersForSites(getRelatedWorkerSites(site));
     log(`Manual login successful - session saved for ${site.toUpperCase()}`);
 
     await browser.close();
@@ -154,6 +156,14 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
     loginBrowsers.delete(site);
     loginsInProgress.delete(site);
   }
+}
+
+function getRelatedWorkerSites(site: SiteName): SiteName[] {
+  if (site === "ag") return ["ag", "ag_push", "ag_auto_push"];
+  if (site === "niid") return ["niid"];
+  if (site === "niid_push") return ["niid_push", "niid_auto_push"];
+  if (site === "niid_auto_push") return ["niid_push", "niid_auto_push"];
+  return [site];
 }
 
 export async function closeManualLoginPopups() {

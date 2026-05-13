@@ -6,7 +6,10 @@ import { getPage, touchSession } from "../../controller";
 import { loginToAG } from "../ag";
 import { log } from "../../../utils/logger";
 import { SiteName } from "../../../types";
-import { getNetworkTimeoutMs } from "../../timeoutSettings";
+import {
+  getNetworkTimeoutMs,
+  getQuickCheckTimeoutMs,
+} from "../../timeoutSettings";
 
 // ============================================
 // SELECTORS — A&G Spool / Unpushed Policies page
@@ -160,7 +163,7 @@ async function triggerSearchAndDownload(page: Page): Promise<string> {
   await page.click(SPOOL_SELECTORS.searchButton);
 
   // Race: either an error shows up quickly, or a popup opens for the download
-  const errorPromise = checkForErrors(page, 5000);
+  const errorPromise = checkForErrors(page);
 
   const outcome = await Promise.race([
     errorPromise.then(() => "no-error" as const),
@@ -202,7 +205,10 @@ async function triggerSearchAndDownload(page: Page): Promise<string> {
 // Check for inline errors on the page
 // ============================================
 
-async function checkForErrors(page: Page, timeout = 3000): Promise<boolean> {
+async function checkForErrors(
+  page: Page,
+  timeout = getQuickCheckTimeoutMs(),
+): Promise<boolean> {
   const noRecords = await page
     .waitForSelector(SPOOL_SELECTORS.noRecordsMessage, { timeout })
     .catch(() => null);

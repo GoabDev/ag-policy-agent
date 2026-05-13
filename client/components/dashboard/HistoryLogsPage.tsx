@@ -39,6 +39,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLogs, usePushLogs } from "@/queries/useCorrections";
 import { usePolicyStatusLogs } from "@/queries/usePolicyStatus";
+import { useSSE } from "@/hooks/useSSE";
 import {
   CorrectionDetailDialog,
   PolicyStatusDetailDialog,
@@ -150,6 +151,7 @@ function PaginationControls({
 
 export default function HistoryLogsPage() {
   const router = useRouter();
+  useSSE();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as HistoryTab) || "corrections";
   const [tab, setTab] = useState<HistoryTab>(initialTab);

@@ -102,11 +102,13 @@ const startTime = Date.now();
 // Agent status
 app.get("/api/status", (req, res) => {
   const running = getRunningTasks();
+  const runningPushTasks = getRunningPushTasks();
   res.json({
     success: true,
     data: {
-      isRunning: running.length > 0,
+      isRunning: running.length + runningPushTasks.length > 0,
       runningTasks: running,
+      runningPushTasks,
       workerPool: getPoolStatus(),
       policyPushQueue: getPolicyPushQueueStatus(),
       sessions: {
@@ -219,6 +221,32 @@ app.post("/api/corrections/run", async (req, res) => {
           success: false,
           error: `Unknown type: ${(input as any).type}`,
         });
+    }
+
+    const portalTarget = (input as any).portalTarget || "auto";
+    if (!["auto", "primary", "secondary"].includes(portalTarget)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid portalTarget",
+      });
+    }
+
+    const isEpinPolicy = isEpinPolicyNumber(input.policyNumber);
+    if (!isEpinPolicy && portalTarget === "secondary") {
+      const niidSupportedTypes = ["registration", "reg_and_chassis", "chassis"];
+      if (!niidSupportedTypes.includes(input.type)) {
+        return res.status(400).json({
+          success: false,
+          error: "NIID-only corrections currently support registration and chassis updates only",
+        });
+      }
+    }
+
+    if (!isEpinPolicy && input.type === "swap") {
+      return res.status(400).json({
+        success: false,
+        error: "Swap correction is currently supported only for E-PIN / NIIP policies",
+      });
     }
 
     // Generate task ID upfront, start correction in background, respond immediately

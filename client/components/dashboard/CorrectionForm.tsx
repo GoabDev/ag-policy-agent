@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Combobox } from '@/components/ui/combobox';
-import { RefreshCw, Send, Layers, Pin, CheckCircle2, XCircle, Clock, Ban } from 'lucide-react';
+import { RefreshCw, Send, Layers, Pin, CheckCircle2, XCircle, Clock, Ban, Eraser } from 'lucide-react';
 import { correctionSchema, type CorrectionFormValues } from '@/schema/correction';
 import { Badge } from '@/components/ui/badge';
 import { useRunCorrection, useCancelCorrection } from '@/queries/useCorrections';
@@ -15,6 +15,35 @@ import { getVehicleData, refreshVehicleData } from '@/service/api';
 import type { TaskState } from '@/hooks/useSSE';
 import { VEHICLE_COLOR_OPTIONS } from '@/lib/vehicle-options';
 
+const DEFAULT_CORRECTION_VALUES = {
+  type: 'registration',
+  policyNumber: '',
+  newValue: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  engineNumber: '',
+  newChassisNumber: '',
+  newRegistrationNumber: '',
+  vehicleColor: '',
+  newVehicleMake: '',
+  newVehicleModel: '',
+  vehicleYear: '',
+  address: '',
+  portalTarget: 'auto',
+  previousRegistrationNumber: '',
+};
+
+function isEpinPolicyNumber(policyNumber?: string) {
+  const lastSegment = (policyNumber || '')
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .pop();
+
+  return /^C\d+$/i.test(lastSegment || '');
+}
 
 export function CorrectionForm({
   isRunning,
@@ -44,27 +73,24 @@ export function CorrectionForm({
     formState: { errors }
   } = useForm<any>({
     resolver: zodResolver(correctionSchema),
-    defaultValues: {
-      type: 'registration',
-      policyNumber: '',
-      newValue: '',
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      engineNumber: '',
-      newChassisNumber: '',
-      newRegistrationNumber: '',
-      vehicleColor: '',
-      newVehicleMake: '',
-      newVehicleModel: '',
-      vehicleYear: '',
-      address: '',
-    }
+    defaultValues: DEFAULT_CORRECTION_VALUES,
   });
 
   const selectedType = watch('type');
   const selectedMake = watch('newVehicleMake');
+  const policyNumber = watch('policyNumber');
+  const portalTarget = watch('portalTarget') || 'auto';
+  const isEpinPolicy = isEpinPolicyNumber(policyNumber);
+  const primaryPortalLabel = isEpinPolicy ? 'E-PIN only' : 'Scratch Card only';
+  const secondaryPortalLabel = isEpinPolicy ? 'NIIP only' : 'NIID only';
+  const isNiidOnly = !isEpinPolicy && portalTarget === 'secondary';
+  const isUnsupportedNiidOnly =
+    isNiidOnly &&
+    !['registration', 'reg_and_chassis', 'chassis'].includes(selectedType);
+  const isUnsupportedScratchSwap = !isEpinPolicy && selectedType === 'swap';
+  const defaultTargetLabel = isEpinPolicy
+    ? 'Default: E-PIN + NIIP when applicable'
+    : 'Default: Scratch Card + NIID when applicable';
 
   const queryClient = useQueryClient();
 
@@ -99,7 +125,20 @@ export function CorrectionForm({
   };
 
   const onSubmit = (data: CorrectionFormValues) => {
-    runMutation.mutate(data);
+    runMutation.mutate(data, {
+      onSuccess: () => {
+        setValue('portalTarget', 'auto');
+        setValue('previousRegistrationNumber', '');
+      },
+    });
+  };
+
+  const clearFields = () => {
+    reset({
+      ...DEFAULT_CORRECTION_VALUES,
+      type: selectedType,
+    });
+    setVehicleModelEntryMode('select');
   };
 
   return (
@@ -403,17 +442,79 @@ export function CorrectionForm({
             </>
           )}
 
-          <Button
-            type="submit"
-            className="w-full font-semibold transition-all"
-            disabled={runMutation.isPending}
-          >
-            {runMutation.isPending ? (
-              <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
-            ) : (
-              <><Send className="w-4 h-4 mr-2" /> Run Correction</>
-            )}
-          </Button>
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="font-semibold transition-all"
+              onClick={clearFields}
+              disabled={runMutation.isPending}
+            >
+              <Eraser className="w-4 h-4 mr-2" />
+              Clear
+            </Button>
+            <Button
+              type="submit"
+              className="font-semibold transition-all"
+              disabled={runMutation.isPending || isUnsupportedNiidOnly || isUnsupportedScratchSwap}
+            >
+              {runMutation.isPending ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
+              ) : (
+                <><Send className="w-4 h-4 mr-2" /> Run Correction</>
+              )}
+            </Button>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Correction Target</label>
+              <span className="text-[10px] text-muted-foreground">{defaultTargetLabel}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={portalTarget === 'primary' ? 'default' : 'outline'}
+                className="h-9 text-xs font-semibold"
+                onClick={() => setValue('portalTarget', portalTarget === 'primary' ? 'auto' : 'primary')}
+              >
+                {primaryPortalLabel}
+              </Button>
+              <Button
+                type="button"
+                variant={portalTarget === 'secondary' ? 'default' : 'outline'}
+                className="h-9 text-xs font-semibold"
+                onClick={() => setValue('portalTarget', portalTarget === 'secondary' ? 'auto' : 'secondary')}
+              >
+                {secondaryPortalLabel}
+              </Button>
+            </div>
+          </div>
+
+          {isNiidOnly && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Previous Registration Number
+              </label>
+              <Input
+                {...register('previousRegistrationNumber')}
+                placeholder="Optional. Leave blank to read from Scratch Card first."
+                className="bg-background border-border focus-visible:ring-primary/50"
+              />
+            </div>
+          )}
+
+          {isUnsupportedNiidOnly && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              NIID-only corrections currently support registration and chassis updates only.
+            </p>
+          )}
+
+          {isUnsupportedScratchSwap && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              Swap correction is currently supported only for E-PIN / NIIP policies.
+            </p>
+          )}
         </form>
 
         {/* Active Tasks Progress */}

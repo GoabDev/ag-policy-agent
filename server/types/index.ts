@@ -10,40 +10,47 @@ export type CorrectionType =
   | "chassis"
   | "swap";
 
-export interface NameCorrectionInput {
+export type CorrectionPortalTarget = "auto" | "primary" | "secondary";
+
+export interface CorrectionPortalOptions {
+  portalTarget?: CorrectionPortalTarget;
+  previousRegistrationNumber?: string;
+}
+
+export interface NameCorrectionInput extends CorrectionPortalOptions {
   type: "name";
   policyNumber: string;
   firstName: string;
   lastName: string;
 }
 
-export interface RegistrationCorrectionInput {
+export interface RegistrationCorrectionInput extends CorrectionPortalOptions {
   type: "registration";
   policyNumber: string;
   newRegistrationNumber: string;
 }
 
-export interface VehicleMakeCorrectionInput {
+export interface VehicleMakeCorrectionInput extends CorrectionPortalOptions {
   type: "vehicle_make";
   policyNumber: string;
   newVehicleMake: string;
   newVehicleModel: string;
 }
 
-export interface RegAndChassisCorrectionInput {
+export interface RegAndChassisCorrectionInput extends CorrectionPortalOptions {
   type: "reg_and_chassis";
   policyNumber: string;
   newRegistrationNumber: string;
   newChassisNumber: string;
 }
 
-export interface ChassisCorrectionInput {
+export interface ChassisCorrectionInput extends CorrectionPortalOptions {
   type: "chassis";
   policyNumber: string;
   newChassisNumber: string;
 }
 
-export interface SwapCorrectionInput {
+export interface SwapCorrectionInput extends CorrectionPortalOptions {
   type: "swap";
   policyNumber: string;
   firstName?: string;
@@ -209,6 +216,7 @@ export interface Worker {
   id: string;
   contexts: Map<SiteName, import("playwright").BrowserContext>;
   pages: Map<SiteName, import("playwright").Page>;
+  preloads?: Map<SiteName, Promise<void>>;
   busy: boolean;
 }
 

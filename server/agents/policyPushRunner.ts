@@ -210,7 +210,6 @@ export async function runPolicyPush(
 
     task.status = "completed";
     task.completedAt = new Date().toISOString();
-    emitEvent("push:completed", { taskId: task.id });
     log(`Policy push task completed: ${task.id}`);
   } catch (err: any) {
     // Clean up downloaded/processed files on cancellation or failure
@@ -223,14 +222,12 @@ export async function runPolicyPush(
       task.status = "cancelled";
       task.completedAt = new Date().toISOString();
       addStep(task, createStep(sites.ag, "Task cancelled by user", "failed"));
-      emitEvent("push:cancelled", { taskId: task.id });
       log(`Policy push task cancelled: ${task.id}`);
     } else {
       task.status = "failed";
       task.error = err.message;
       task.completedAt = new Date().toISOString();
       addStep(task, createStep(sites.ag, "error", "failed", err.message));
-      emitEvent("push:failed", { taskId: task.id, error: err.message });
       log(`Policy push task failed: ${task.id} — ${err.message}`, "error");
     }
   }
@@ -240,6 +237,14 @@ export async function runPolicyPush(
   abortControllers.delete(task.id);
   pushTaskHistory.unshift(task);
   saveTaskLog(task.id, task);
+
+  if (task.status === "completed") {
+    emitEvent("push:completed", { taskId: task.id });
+  } else if (task.status === "cancelled") {
+    emitEvent("push:cancelled", { taskId: task.id });
+  } else {
+    emitEvent("push:failed", { taskId: task.id, error: task.error });
+  }
 
   return task;
 }
