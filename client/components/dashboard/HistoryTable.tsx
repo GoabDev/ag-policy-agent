@@ -16,6 +16,7 @@ import {
   Search,
   Copy,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 import { usePolicyStatusLogs } from '@/queries/usePolicyStatus';
 import {
@@ -36,6 +37,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+
+type RetryCorrectionHandler = (correction: Record<string, any>) => void;
 
 const FIELD_LABELS: Record<string, string> = {
   firstName: 'First Name',
@@ -270,10 +273,12 @@ export function CorrectionDetailDialog({
   item,
   open,
   onOpenChange,
+  onRetryCorrection,
 }: {
   item: any;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onRetryCorrection?: RetryCorrectionHandler;
 }) {
   if (!item) return null;
 
@@ -363,7 +368,21 @@ export function CorrectionDetailDialog({
           )}
         </div>
 
-        <DialogFooter showCloseButton />
+        <DialogFooter showCloseButton>
+          {onRetryCorrection && item.correction && (
+            <Button
+              type="button"
+              variant="default"
+              onClick={() => {
+                onRetryCorrection(item.correction);
+                onOpenChange(false);
+              }}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Retry
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -655,7 +674,11 @@ export function PolicyStatusDetailDialog({
   );
 }
 
-function CorrectionHistoryTab() {
+function CorrectionHistoryTab({
+  onRetryCorrection,
+}: {
+  onRetryCorrection?: RetryCorrectionHandler;
+}) {
   const router = useRouter();
   const { data: history, isLoading, refetch } = useLogs({ page: 1, pageSize: 10 });
   const [selected, setSelected] = useState<any>(null);
@@ -741,7 +764,24 @@ function CorrectionHistoryTab() {
                     {new Date(h.createdAt).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    <StatusBadge status={h.status} />
+                    <div className="flex items-center justify-end gap-2">
+                      <StatusBadge status={h.status} />
+                      {onRetryCorrection && h.correction && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRetryCorrection(h.correction);
+                          }}
+                        >
+                          <RotateCcw className="mr-1.5 h-3 w-3" />
+                          Retry
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -753,6 +793,7 @@ function CorrectionHistoryTab() {
         item={selected}
         open={!!selected}
         onOpenChange={(open) => !open && setSelected(null)}
+        onRetryCorrection={onRetryCorrection}
       />
     </div>
   );
@@ -980,7 +1021,11 @@ function PolicyStatusHistoryTab() {
   );
 }
 
-export function HistoryTable() {
+export function HistoryTable({
+  onRetryCorrection,
+}: {
+  onRetryCorrection?: RetryCorrectionHandler;
+}) {
   return (
     <Card className="shadow-xl lg:col-span-2 border-border bg-card">
       <Tabs defaultValue="corrections">
@@ -1005,7 +1050,7 @@ export function HistoryTable() {
         </CardHeader>
         <CardContent className="p-0">
           <TabsContent value="corrections" className="mt-0">
-            <CorrectionHistoryTab />
+            <CorrectionHistoryTab onRetryCorrection={onRetryCorrection} />
           </TabsContent>
           <TabsContent value="polstatus" className="mt-0">
             <PolicyStatusHistoryTab />

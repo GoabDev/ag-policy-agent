@@ -14,6 +14,7 @@ import { useRunCorrection, useCancelCorrection } from '@/queries/useCorrections'
 import { getVehicleData, refreshVehicleData } from '@/service/api';
 import type { TaskState } from '@/hooks/useSSE';
 import { VEHICLE_COLOR_OPTIONS } from '@/lib/vehicle-options';
+import { buildCorrectionRetryValues, type CorrectionRetryDraft } from '@/lib/correction-retry';
 
 const DEFAULT_CORRECTION_VALUES = {
   type: 'registration',
@@ -49,10 +50,12 @@ export function CorrectionForm({
   isRunning,
   activeTasks,
   tasks,
+  retryDraft,
 }: {
   isRunning: boolean,
   activeTasks: TaskState[],
   tasks: Map<string, TaskState>,
+  retryDraft?: CorrectionRetryDraft | null,
 }) {
   const [vehicleModelEntryMode, setVehicleModelEntryMode] = React.useState<'select' | 'manual'>('select');
   const runMutation = useRunCorrection();
@@ -93,6 +96,13 @@ export function CorrectionForm({
     : 'Default: Scratch Card + NIID when applicable';
 
   const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    if (!retryDraft) return;
+
+    reset(buildCorrectionRetryValues(retryDraft.correction));
+    setVehicleModelEntryMode('select');
+  }, [reset, retryDraft]);
 
   const { data: vehicleData, isLoading: isLoadingVehicles, error: vehicleError } = useQuery({
     queryKey: ['vehicle-data'],

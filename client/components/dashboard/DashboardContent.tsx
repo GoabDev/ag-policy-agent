@@ -12,9 +12,16 @@ import { useSSE } from "@/hooks/useSSE";
 import { getVehicleData } from "@/service/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import {
+  createCorrectionRetryDraft,
+  takeCorrectionRetryDraft,
+  type CorrectionRetryDraft,
+} from "@/lib/correction-retry";
 
 export default function DashboardContent() {
   const { logs, setLogs, tasks, activeTasks, isRunning, policyStatusTasks } = useSSE();
+  const [correctionRetryDraft, setCorrectionRetryDraft] =
+    React.useState<CorrectionRetryDraft | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -24,6 +31,20 @@ export default function DashboardContent() {
       queryFn: getVehicleData,
     });
   }, [queryClient]);
+
+  useEffect(() => {
+    const draft = takeCorrectionRetryDraft();
+    if (draft) {
+      setCorrectionRetryDraft(draft);
+    }
+  }, []);
+
+  const retryCorrection = React.useCallback((correction: Record<string, any>) => {
+    setCorrectionRetryDraft(createCorrectionRetryDraft(correction));
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
@@ -53,6 +74,7 @@ export default function DashboardContent() {
             isRunning={isRunning}
             activeTasks={activeTasks}
             tasks={tasks}
+            retryDraft={correctionRetryDraft}
           />
           <PolicyPushForm activeTasks={activeTasks} tasks={tasks} />
         </div>
@@ -66,7 +88,7 @@ export default function DashboardContent() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <HistoryTable />
+          <HistoryTable onRetryCorrection={retryCorrection} />
           <SessionControl />
         </div>
 

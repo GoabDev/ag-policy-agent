@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   XCircle,
   Ban,
+  RotateCcw,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ import {
   policyStatusLookupLabel,
   pushMethodLabel,
 } from "@/components/dashboard/HistoryTable";
+import { saveCorrectionRetryDraft } from "@/lib/correction-retry";
 
 type HistoryTab = "corrections" | "polstatus" | "pushes";
 
@@ -214,6 +216,11 @@ export default function HistoryLogsPage() {
     router.replace(`/history?tab=${safeTab}`);
   }
 
+  function retryCorrection(correction: Record<string, any>) {
+    saveCorrectionRetryDraft(correction);
+    router.push("/dashboard");
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1200px] p-6 md:p-8">
@@ -352,7 +359,24 @@ export default function HistoryLogsPage() {
                               {new Date(item.createdAt).toLocaleString()}
                             </TableCell>
                             <TableCell className="text-right">
-                              <StatusBadge status={item.status} />
+                              <div className="flex items-center justify-end gap-2">
+                                <StatusBadge status={item.status} />
+                                {item.correction && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      retryCorrection(item.correction);
+                                    }}
+                                  >
+                                    <RotateCcw className="mr-1.5 h-3 w-3" />
+                                    Retry
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
@@ -583,6 +607,7 @@ export default function HistoryLogsPage() {
           item={selectedCorrection}
           open={Boolean(selectedCorrection)}
           onOpenChange={(open) => !open && setSelectedCorrection(null)}
+          onRetryCorrection={retryCorrection}
         />
         <PolicyStatusDetailDialog
           item={selectedPolicyStatus}
