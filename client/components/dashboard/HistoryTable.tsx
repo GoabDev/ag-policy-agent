@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useLogs, usePushLogs } from '@/queries/useCorrections';
 import {
   ClipboardList,
@@ -680,17 +681,33 @@ function CorrectionHistoryTab({
   onRetryCorrection?: RetryCorrectionHandler;
 }) {
   const router = useRouter();
-  const { data: history, isLoading, refetch } = useLogs({ page: 1, pageSize: 10 });
+  const [searchValue, setSearchValue] = useState('');
+  const deferredSearch = React.useDeferredValue(searchValue);
+  const { data: history, isFetching, refetch } = useLogs({
+    page: 1,
+    pageSize: 10,
+    search: deferredSearch,
+  });
   const [selected, setSelected] = useState<any>(null);
   const items = history?.data?.items || [];
 
   return (
     <div>
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-3 md:flex-row md:items-center md:justify-between">
         <span className="text-xs text-muted-foreground">
           Showing {items.length} of {history?.data?.pagination?.total || 0}
+          {deferredSearch ? ' matching correction(s)' : ''}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+              placeholder="Search corrections"
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -704,9 +721,9 @@ function CorrectionHistoryTab({
             size="sm"
             className="h-8 text-xs"
             onClick={() => refetch()}
-            disabled={isLoading}
+            disabled={isFetching}
           >
-            <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`mr-2 h-3 w-3 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
@@ -801,17 +818,33 @@ function CorrectionHistoryTab({
 
 function PushHistoryTab() {
   const router = useRouter();
-  const { data: history, isLoading, refetch } = usePushLogs({ page: 1, pageSize: 10 });
+  const [searchValue, setSearchValue] = useState('');
+  const deferredSearch = React.useDeferredValue(searchValue);
+  const { data: history, isFetching, refetch } = usePushLogs({
+    page: 1,
+    pageSize: 10,
+    search: deferredSearch,
+  });
   const [selected, setSelected] = useState<any>(null);
   const items = history?.data?.items || [];
 
   return (
     <div>
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-3 md:flex-row md:items-center md:justify-between">
         <span className="text-xs text-muted-foreground">
           Showing {items.length} of {history?.data?.pagination?.total || 0}
+          {deferredSearch ? ' matching push(es)' : ''}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+              placeholder="Search push history"
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -825,9 +858,9 @@ function PushHistoryTab() {
             size="sm"
             className="h-8 text-xs"
             onClick={() => refetch()}
-            disabled={isLoading}
+            disabled={isFetching}
           >
-            <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`mr-2 h-3 w-3 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
@@ -912,17 +945,33 @@ function PushHistoryTab() {
 
 function PolicyStatusHistoryTab() {
   const router = useRouter();
-  const { data: history, isLoading, refetch } = usePolicyStatusLogs({ page: 1, pageSize: 10 });
+  const [searchValue, setSearchValue] = useState('');
+  const deferredSearch = React.useDeferredValue(searchValue);
+  const { data: history, isFetching, refetch } = usePolicyStatusLogs({
+    page: 1,
+    pageSize: 10,
+    search: deferredSearch,
+  });
   const [selected, setSelected] = useState<any>(null);
   const items = history?.data?.items || [];
 
   return (
     <div>
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-3 md:flex-row md:items-center md:justify-between">
         <span className="text-xs text-muted-foreground">
           Showing {items.length} of {history?.data?.pagination?.total || 0}
+          {deferredSearch ? ' matching status log(s)' : ''}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+              placeholder="Search status history"
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -936,9 +985,9 @@ function PolicyStatusHistoryTab() {
             size="sm"
             className="h-8 text-xs"
             onClick={() => refetch()}
-            disabled={isLoading}
+            disabled={isFetching}
           >
-            <RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`mr-2 h-3 w-3 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>

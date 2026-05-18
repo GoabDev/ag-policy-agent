@@ -170,3 +170,22 @@ export function useStopAllSessions() {
     },
   });
 }
+
+export function useStopSessionGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.stopSessionGroup,
+    onSuccess: (_data, group) => {
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+      const label =
+        group === 'ag' ? 'A&G Platform' : group === 'niid' ? 'NIID' : 'E-PIN / NIIP';
+      sileo.success({
+        title: `${label} sessions stopped`,
+        description: 'Browsers were closed and saved sessions were cleared for this group',
+      });
+    },
+    onError: (error: Error) => {
+      sileo.error({ title: 'Failed to stop sessions', description: error.message || 'Something went wrong' });
+    },
+  });
+}

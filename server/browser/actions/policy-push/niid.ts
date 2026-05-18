@@ -1,9 +1,10 @@
 import { Page } from "playwright";
 import { config } from "../../../config";
-import { getPage, touchSession } from "../../controller";
+import { closeSessionRuntime, getPage, touchSession } from "../../controller";
 import { log, emitEvent } from "../../../utils/logger";
 import { SiteName } from "../../../types";
 import { getNetworkTimeoutMs } from "../../timeoutSettings";
+import { getFirstSheetName } from "../../../utils/xlsxProcessor";
 
 // ============================================
 // SELECTORS — NIID Upload Policy page
@@ -14,6 +15,13 @@ const UPLOAD_SELECTORS = {
   // File upload
   fileInput: 'input[type="file"]',
   uploadButton: 'internal:role=button[name="Upload"i]',
+  uploadButtonCandidates: [
+    "#MainContent_btnUpload",
+    "#MainContent_btnUploadPolicy",
+    'input[type="submit"][value="Upload"]',
+    'input[type="button"][value="Upload"]',
+    'button:has-text("Upload")',
+  ],
 
   // Telerik file read progress area (appears after selecting a file)
   fileProgressArea: "#ctl00_MainContent_RadProgressArea1",
@@ -29,6 +37,21 @@ const UPLOAD_SELECTORS = {
   // Dashboard indicator (to confirm login)
   dashboardIndicator: 'internal:text="Upload Policy"i',
 };
+
+async function clickUploadButton(page: Page) {
+  for (const selector of UPLOAD_SELECTORS.uploadButtonCandidates) {
+    const button = page.locator(selector).first();
+    const isVisible = await button.isVisible().catch(() => false);
+    if (!isVisible) continue;
+
+    await button.click();
+    log(`Clicked NIID upload button with selector: ${selector}`);
+    return;
+  }
+
+  await page.click(UPLOAD_SELECTORS.uploadButton);
+  log("Clicked NIID upload button by role");
+}
 
 // ============================================
 // Check NIID Push session
@@ -65,14 +88,15 @@ export async function checkNIIDPushSession(
 export async function getNIIDUploadPage(
   site: Extract<SiteName, "niid_push" | "niid_auto_push"> = "niid_push",
 ): Promise<Page> {
-  const page = await getPage(site);
+  let page = await getPage(site);
   const currentUrl = page.url();
 
-  // Detect expired session — NIID redirects to /default.aspx
+  // Manual login can refresh storage while an old in-memory page remains on
+  // the login URL. Drop that runtime context once before navigating.
   if (currentUrl.includes("/default.aspx")) {
-    throw new Error(
-      "NIID Push session expired. Please login again via the NIID Push login popup (CAPTCHA required).",
-    );
+    log("NIID Push page is on login URL, refreshing runtime context from saved session", "warn");
+    await closeSessionRuntime(site);
+    page = await getPage(site);
   }
 
   if (currentUrl.includes("Upload_Policy.aspx")) {
@@ -117,6 +141,7 @@ export async function uploadPolicyFile(
   filePath: string,
 ): Promise<NiidUploadResult> {
   log(`Uploading policy file to NIID: ${filePath}`);
+  log(`NIID upload workbook first sheet: ${getFirstSheetName(filePath)}`);
 
   // Step 1: Select class of business — "Motor Vehicle"
   await page.selectOption(UPLOAD_SELECTORS.businessClassDropDown, "Motor Vehicle");
@@ -124,12 +149,27 @@ export async function uploadPolicyFile(
 
   // Step 2: Set the file on the file input
   await page.setInputFiles(UPLOAD_SELECTORS.fileInput, filePath);
+  await page.locator(UPLOAD_SELECTORS.fileInput).evaluate((input) => {
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  const selectedFileName = await page
+    .locator(UPLOAD_SELECTORS.fileInput)
+    .evaluate((input: HTMLInputElement) => input.value)
+    .catch(() => "");
+
+  if (!selectedFileName) {
+    throw new Error("NIID did not accept the selected upload file");
+  }
+
+  log(`NIID file input selected: ${selectedFileName}`);
 
   // Step 3: Wait for Telerik RadUploadProgressArea to finish reading the file
   // It appears after file selection and shows upload progress — we must wait
   // for it to reach 100% or disappear before clicking Upload.
   const progressArea = await page
-    .waitForSelector(UPLOAD_SELECTORS.fileProgressArea, { timeout: getNetworkTimeoutMs(), state: "visible" })
+    .waitForSelector(UPLOAD_SELECTORS.fileProgressArea, { timeout: 5_000, state: "visible" })
     .catch(() => null);
 
   if (progressArea) {
@@ -159,13 +199,15 @@ export async function uploadPolicyFile(
         log("File read reached 100%, waiting for progress area to close...");
         // Wait a moment for the progress area to auto-close
         await page
-          .waitForSelector(UPLOAD_SELECTORS.fileProgressArea, { state: "hidden", timeout: getNetworkTimeoutMs() })
+          .waitForSelector(UPLOAD_SELECTORS.fileProgressArea, { state: "hidden", timeout: 5_000 })
           .catch(() => null);
         break;
       }
 
       await page.waitForTimeout(1000);
     }
+  } else {
+    log("File progress area did not appear; continuing to upload click");
   }
 
   // Step 4: Handle any JS alert dialog that may appear after clicking upload
@@ -175,11 +217,11 @@ export async function uploadPolicyFile(
   });
 
   // Step 5: Click upload button
-  await page.click(UPLOAD_SELECTORS.uploadButton);
+  await clickUploadButton(page);
 
   // Step 5: Wait for loading indicator to appear (upload started)
   const loadingEl = await page
-    .waitForSelector(UPLOAD_SELECTORS.loadingText, { timeout: getNetworkTimeoutMs() })
+    .waitForSelector(UPLOAD_SELECTORS.loadingText, { timeout: 30_000 })
     .catch(() => null);
 
   if (loadingEl) {
@@ -221,6 +263,17 @@ export async function uploadPolicyFile(
     if (elapsed >= MAX_UPLOAD_WAIT) {
       throw new Error(
         "NIID upload timed out after 5 minutes. The upload may still be processing on NIID's side — please check manually.",
+      );
+    }
+  } else {
+    const resultText = await page
+      .locator(UPLOAD_SELECTORS.resultMessage)
+      .textContent({ timeout: 5_000 })
+      .catch(() => "");
+
+    if (!resultText?.trim()) {
+      throw new Error(
+        "NIID did not start the upload after clicking Upload. The file may not have been accepted by the page.",
       );
     }
   }

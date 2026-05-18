@@ -223,6 +223,24 @@ export async function clearSession(site: SiteName) {
   }
 }
 
+export async function closeSessionRuntime(site: SiteName) {
+  const contextKey: SiteName = site === 'ag_push' || site === 'ag_status' ? 'ag' : site;
+
+  const ctx = contexts.get(contextKey);
+  if (ctx) {
+    try { await ctx.close(); } catch {}
+    contexts.delete(contextKey);
+  }
+
+  pages.delete(contextKey);
+  if (contextKey === 'ag') {
+    pages.delete('ag_status');
+    pages.delete('ag_push');
+  }
+
+  log(`Runtime browser context cleared for ${contextKey.toUpperCase()}`);
+}
+
 export function markSessionActive(site: SiteName) {
   const now = new Date().toISOString();
   const key: SiteName = site === 'ag_push' || site === 'ag_status' ? 'ag' : site;

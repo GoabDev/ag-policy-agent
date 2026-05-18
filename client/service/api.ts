@@ -69,6 +69,8 @@ export const loginAutomatedPushSessions = () => api.post('/api/sessions/login-au
 export const loginAutomatedNIIDPush = () => api.post('/api/sessions/login-automated-niid-push');
 export const startKeepAlive = () => api.post('/api/sessions/keepalive');
 export const stopAllSessions = () => api.post('/api/sessions/stop-all');
+export const stopSessionGroup = (group: 'ag' | 'niid' | 'epin_niip') =>
+  api.post('/api/sessions/stop-group', { group });
 
 // Cancellation
 export const cancelCorrection = (taskId: string) => api.post(`/api/corrections/${taskId}/cancel`);

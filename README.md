@@ -16,6 +16,8 @@ Automate corrections across the correct platform pair in a single action:
 - Automatic platform routing detects scratch-card vs E-PIN policies from the policy number format.
 - Scratch-card corrections run across A&G and NIID.
 - E-PIN corrections run across E-PIN and NIIP.
+- Optional correction targets allow a single-platform correction when only the primary portal or downstream portal should be updated.
+- Correction history supports retry prefill so a previous correction can be loaded back into the correct form tab, adjusted, and run again.
 - Name Correction updates policyholder first name and/or last name.
 - Registration Correction updates vehicle registration number.
 - Vehicle Make Correction updates vehicle make and model.
@@ -72,6 +74,7 @@ Manual Policy Push and automated Policy Push are queued separately but serialize
 - Session keep-alive with configurable heartbeat intervals
 - Automatic session inactivity timeout to kill idle sessions after a configurable period
 - Stop All Sessions action to close and clear every manual and automated browser session
+- Per-platform stop actions for A&G, NIID, and E-PIN/NIIP session groups
 - Visual login status indicators for all correction platforms
 
 ### Real-Time Monitoring
@@ -79,6 +82,8 @@ Manual Policy Push and automated Policy Push are queued separately but serialize
 - Live activity feed showing all system events as they happen
 - Toast notifications for task success, failure, and warning events
 - Correction history table with detail dialogs for field-level changes
+- Retry action on correction history rows and detail dialogs
+- Dashboard history tabs include inline policy-number search for corrections, Policy Status, and Policy Push
 - Dedicated Policy Status history with summary, trail, and full-detail views
 - Push history and automation history tables with upload result previews and detail dialogs
 - Backend-paginated automation logs to keep large histories responsive
@@ -90,12 +95,14 @@ Manual Policy Push and automated Policy Push are queued separately but serialize
 - Concurrent task execution with multiple Playwright browser workers
 - Configurable max workers for parallel processing
 - Automatic worker queue management
+- Queue timeout, cancellation, and terminal task reconciliation to prevent stale active-task cards
 
 ### Settings
 
 - Headless mode toggle for browser visibility during debugging
 - Log retention with automatic scheduled cleanup
 - Session timeout for auto-killing idle sessions
+- Shared portal network timeout applied across correction and push browser actions
 - Max workers configuration
 - Keep-alive interval configuration
 - Notification preferences for all, errors only, or no notifications
@@ -343,6 +350,27 @@ Automated agent progress is persisted in `storage/automated-agent-state.json`. P
 ---
 
 ## Changelog
+
+### v2.4.0 - Correction Targeting, Retry, and Worker Stability
+
+#### New Features
+
+- Added correction target controls so users can keep the default linked-platform correction or choose primary-only and downstream-only correction paths.
+- Added E-PIN/NIIP-only and scratch-card/NIID-only routing based on the detected policy number format.
+- Added NIID-only fallback support that can read the previous registration from Scratch Card without applying a Scratch Card correction.
+- Added correction-history retry so saved correction inputs can be loaded back into the matching correction tab for adjustment and rerun.
+
+#### Improvements
+
+- Correction workers now preload NIIP/NIID pages in the background while primary-platform work starts immediately, reducing unnecessary waiting before E-PIN or Scratch Card corrections.
+- Failed or cancelled correction workers are destroyed instead of reused, preventing bad session/page state from poisoning later jobs.
+- Active task cards now reconcile against backend task status so terminal jobs do not stay stuck in the UI after failures.
+- Manual login now clears related worker state so newly activated sessions are used immediately on the next run.
+- Manual NIID Push login now clears stale in-memory upload pages so refreshed sessions are used immediately after CAPTCHA login.
+- Policy Push now rebuilds the processed upload file as a clean `.xlsx` workbook with a single `Sheet1` worksheet, verifies it before upload, and fails clearly if NIID does not start after clicking Upload.
+- Shared timeout settings now cover additional A&G policy-push navigation and download steps.
+- Correction history and push history now refresh from SSE terminal events, keeping recent results closer to real time.
+- Session Management now includes per-platform stop controls for A&G, NIID, and E-PIN/NIIP without shutting down unrelated sessions.
 
 ### v2.3.1 - Timeout, History, Tracking, and Validation Refinements
 

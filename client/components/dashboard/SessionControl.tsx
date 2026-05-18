@@ -14,6 +14,7 @@ import {
   useLoginAutomatedPushSessions,
   useKeepAlive,
   useStopAllSessions,
+  useStopSessionGroup,
 } from "@/queries/useSessions";
 import { Lock, RefreshCw, Heart, Power } from "lucide-react";
 
@@ -72,6 +73,7 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
   const loginAutomatedNIIDPush = useLoginAutomatedNIIDPush();
   const keepAlive = useKeepAlive();
   const stopAll = useStopAllSessions();
+  const stopGroup = useStopSessionGroup();
 
   const anyNiidPending =
     loginNIID.isPending || loginNIIDPush.isPending || loginNIIDAll.isPending;
@@ -83,6 +85,16 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
       "Stop all sessions, close all browser windows, and clear saved session files?",
     );
     if (confirmed) stopAll.mutate();
+  };
+
+  const stopSessionGroup = (
+    group: "ag" | "niid" | "epin_niip",
+    label: string,
+  ) => {
+    const confirmed = window.confirm(
+      `Stop ${label} sessions, close related browser pages, and clear saved session files?`,
+    );
+    if (confirmed) stopGroup.mutate(group);
   };
 
   return (
@@ -153,9 +165,9 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full text-xs"
+                className="w-full text-xs mb-2"
                 onClick={() => loginAG.mutate()}
-                disabled={loginAG.isPending}
+                disabled={loginAG.isPending || stopGroup.isPending}
               >
                 {loginAG.isPending ? (
                   <RefreshCw className="w-3 h-3 animate-spin mr-2" />
@@ -163,6 +175,20 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
                   <Lock className="w-3 h-3 mr-2" />
                 )}
                 {sessions.ag?.isActive ? "Refresh Session" : "Login"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-[10px] h-7 text-destructive hover:text-destructive"
+                onClick={() => stopSessionGroup("ag", "A&G Platform")}
+                disabled={stopGroup.isPending}
+              >
+                {stopGroup.isPending ? (
+                  <RefreshCw className="w-3 h-3 animate-spin mr-2" />
+                ) : (
+                  <Power className="w-3 h-3 mr-2" />
+                )}
+                Stop A&G
               </Button>
               <p className="text-[10px] text-muted-foreground mt-2 text-center">
                 Auto-login - covers corrections + manual push
@@ -188,7 +214,7 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
                 size="sm"
                 className="w-full text-xs mb-2"
                 onClick={() => loginNIIDAll.mutate()}
-                disabled={anyNiidPending}
+                disabled={anyNiidPending || stopGroup.isPending}
               >
                 {loginNIIDAll.isPending ? (
                   <RefreshCw className="w-3 h-3 animate-spin mr-2" />
@@ -203,7 +229,7 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
                   size="sm"
                   className="flex-1 text-[10px] h-7"
                   onClick={() => loginNIID.mutate()}
-                  disabled={anyNiidPending}
+                  disabled={anyNiidPending || stopGroup.isPending}
                 >
                   Corrections Only
                 </Button>
@@ -212,11 +238,25 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
                   size="sm"
                   className="flex-1 text-[10px] h-7"
                   onClick={() => loginNIIDPush.mutate()}
-                  disabled={anyNiidPending}
+                  disabled={anyNiidPending || stopGroup.isPending}
                 >
                   Push Only
                 </Button>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 h-7 w-full text-[10px] text-destructive hover:text-destructive"
+                onClick={() => stopSessionGroup("niid", "NIID")}
+                disabled={stopGroup.isPending}
+              >
+                {stopGroup.isPending ? (
+                  <RefreshCw className="w-3 h-3 animate-spin mr-2" />
+                ) : (
+                  <Power className="w-3 h-3 mr-2" />
+                )}
+                Stop NIID
+              </Button>
               <p className="text-[10px] text-muted-foreground mt-2 text-center">
                 Manual login - opens browser popup(s)
               </p>
@@ -241,7 +281,7 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
                 size="sm"
                 className="w-full text-xs mb-2"
                 onClick={() => loginEPINAll.mutate()}
-                disabled={anyEpinPending}
+                disabled={anyEpinPending || stopGroup.isPending}
               >
                 {loginEPINAll.isPending ? (
                   <RefreshCw className="w-3 h-3 animate-spin mr-2" />
@@ -256,7 +296,7 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
                   size="sm"
                   className="flex-1 text-[10px] h-7"
                   onClick={() => loginEPIN.mutate()}
-                  disabled={anyEpinPending}
+                  disabled={anyEpinPending || stopGroup.isPending}
                 >
                   E-PIN Only
                 </Button>
@@ -265,11 +305,25 @@ export function SessionControl({ mode = "manual" }: SessionControlProps) {
                   size="sm"
                   className="flex-1 text-[10px] h-7"
                   onClick={() => loginNIIP.mutate()}
-                  disabled={anyEpinPending}
+                  disabled={anyEpinPending || stopGroup.isPending}
                 >
                   NIIP Only
                 </Button>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 h-7 w-full text-[10px] text-destructive hover:text-destructive"
+                onClick={() => stopSessionGroup("epin_niip", "E-PIN / NIIP")}
+                disabled={stopGroup.isPending}
+              >
+                {stopGroup.isPending ? (
+                  <RefreshCw className="w-3 h-3 animate-spin mr-2" />
+                ) : (
+                  <Power className="w-3 h-3 mr-2" />
+                )}
+                Stop E-PIN / NIIP
+              </Button>
               <p className="text-[10px] text-muted-foreground mt-2 text-center">
                 Auto-login for e-pin corrections
               </p>

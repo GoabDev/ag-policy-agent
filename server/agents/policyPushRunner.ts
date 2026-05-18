@@ -162,18 +162,16 @@ export async function runPolicyPush(
       fs.mkdirSync(processedDir, { recursive: true });
     }
 
-    processedFilePath = path.join(
-      processedDir,
-      `processed_${path.basename(downloadedFilePath)}`
-    );
-    renameSheetToSheet1(downloadedFilePath, processedFilePath);
+    const downloadedName = path.parse(downloadedFilePath).name;
+    processedFilePath = path.join(processedDir, `processed_${downloadedName}.xlsx`);
+    const sheetRename = renameSheetToSheet1(downloadedFilePath, processedFilePath);
     addStep(
       task,
       createStep(
         sites.ag,
         "XLSX sheet renamed to Sheet1",
         "success",
-        path.basename(processedFilePath)
+        `${sheetRename.previousSheetName} -> ${sheetRename.outputSheetName} (${path.basename(processedFilePath)})`
       )
     );
     checkCancelled(signal);

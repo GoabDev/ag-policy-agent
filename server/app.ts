@@ -8,11 +8,13 @@ import {
   getSessionStatus,
   closeBrowser,
   clearAllSessions,
+  clearSession,
 } from "./browser/controller";
 import {
   startAllHeartbeats,
   stopAllHeartbeats,
   startHeartbeat,
+  stopHeartbeat,
 } from "./browser/keepAlive";
 import {
   runCorrection,
@@ -27,8 +29,17 @@ import {
   startPolicyStatus,
   trackPolicyStatus,
 } from "./agents/policyStatusRunner";
-import { getPoolStatus, destroyAllWorkers } from "./browser/workerPool";
-import { CorrectionInput, PolicyPushInput, PolicyStatusInput } from "./types";
+import {
+  getPoolStatus,
+  destroyAllWorkers,
+  destroyWorkersForSites,
+} from "./browser/workerPool";
+import {
+  CorrectionInput,
+  PolicyPushInput,
+  PolicyStatusInput,
+  SiteName,
+} from "./types";
 import {
   cancelPolicyPush,
   getRunningPushTasks,
@@ -636,6 +647,58 @@ app.post("/api/sessions/stop-all", async (req, res) => {
     res.json({
       success: true,
       data: { message: "All sessions stopped and browser windows closed" },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+const SESSION_GROUPS: Record<
+  string,
+  { label: string; sessions: SiteName[]; workerSites: SiteName[] }
+> = {
+  ag: {
+    label: "A&G Platform",
+    sessions: ["ag"],
+    workerSites: ["ag", "ag_status", "ag_push"],
+  },
+  niid: {
+    label: "NIID",
+    sessions: ["niid", "niid_push"],
+    workerSites: ["niid", "niid_push"],
+  },
+  epin_niip: {
+    label: "E-PIN / NIIP",
+    sessions: ["epin", "niip"],
+    workerSites: ["epin", "niip"],
+  },
+};
+
+app.post("/api/sessions/stop-group", async (req, res) => {
+  try {
+    const groupKey = String(req.body?.group || "");
+    const group = SESSION_GROUPS[groupKey];
+
+    if (!group) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid session group",
+      });
+    }
+
+    for (const site of group.sessions) {
+      stopHeartbeat(site);
+    }
+
+    await destroyWorkersForSites(group.workerSites);
+
+    for (const site of group.sessions) {
+      await clearSession(site);
+    }
+
+    res.json({
+      success: true,
+      data: { message: `${group.label} sessions stopped` },
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

@@ -4,7 +4,7 @@ import { log, emitEvent } from "../utils/logger";
 import fs from "fs";
 import path from "path";
 import { SiteName } from "../types";
-import { markSessionActive } from "./controller";
+import { closeSessionRuntime, markSessionActive } from "./controller";
 import { destroyWorkersForSites } from "./workerPool";
 
 const loginsInProgress: Set<SiteName> = new Set();
@@ -139,6 +139,7 @@ export async function openLoginPopup(site: SiteName): Promise<boolean> {
 
     await context.storageState({ path: sessionPath });
     markSessionActive(site);
+    await closeSessionRuntime(site);
     await destroyWorkersForSites(getRelatedWorkerSites(site));
     log(`Manual login successful - session saved for ${site.toUpperCase()}`);
 
