@@ -127,7 +127,9 @@ export async function correctNIIDRegistration(
     if (dialog.message().toLowerCase().includes('successfully updated')) {
       dialogHandled = true;
     }
-    await dialog.dismiss().catch(() => {});
+    // NIID may show a confirmation dialog before applying the update.
+    // Dismissing that dialog cancels the correction, so accept save dialogs.
+    await dialog.accept().catch(() => dialog.dismiss().catch(() => {}));
   };
 
   page.on('dialog', dialogHandler);
@@ -191,7 +193,9 @@ export async function correctNIIDRegAndChassis(
     if (dialog.message().toLowerCase().includes('successfully updated')) {
       dialogHandled = true;
     }
-    await dialog.dismiss().catch(() => {});
+    // NIID may show a confirmation dialog before applying the update.
+    // Dismissing that dialog cancels the correction, so accept save dialogs.
+    await dialog.accept().catch(() => dialog.dismiss().catch(() => {}));
   };
 
   page.on('dialog', dialogHandler);
@@ -255,7 +259,9 @@ export async function correctNIIDChassis(
     if (dialog.message().toLowerCase().includes('successfully updated')) {
       dialogHandled = true;
     }
-    await dialog.dismiss().catch(() => {});
+    // NIID may show a confirmation dialog before applying the update.
+    // Dismissing that dialog cancels the correction, so accept save dialogs.
+    await dialog.accept().catch(() => dialog.dismiss().catch(() => {}));
   };
 
   page.on('dialog', dialogHandler);
